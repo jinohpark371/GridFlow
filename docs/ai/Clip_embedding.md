@@ -55,6 +55,37 @@ score = cosine_similarity(image_vec, theme_vec)
 - [ ] 현재는 사진 1장 단위 처리만 지원 → 그룹 단위 배치(batch) 처리 최적화 필요 (다수 사진 순회 시 속도 개선 여지)
 - [ ] MLP 스코어링으로 전환하는 시점(threshold) 검증 로직 미구현
 - [ ] GPU 미보유 환경(LG Gram) 기준 실제 추론 속도 벤치마크 필요
+- [ ] 콜드스타트 baseline이 특정 사진 유형(저조도, 매크로 클로즈업 등)에서 상식과 다른 순위를 낼 수 있음 → 아래 "실전 테스트 결과" 참고, MLP 전환 시 보정 대상 후보
+
+## 🧪 실전 테스트 결과 (2026-08-06)
+
+같은 테마 문장을 서로 다른 두 사진에 적용해 점수를 비교. (참고: 여러 **테마 간** 점수 차이는 설계상 중요하지 않음 — 실제 서비스에서는 사용자가 테마 하나를 고정한 뒤 **같은 테마, 여러 사진 간** 순위만 사용하기 때문. 아래는 baseline의 방향성 점검용 참고 자료)
+
+**photo1 (버드나무 사이로 강·다리가 보이는 대낮 풍경)**
+
+| 테마 | 점수 |
+|---|---|
+| green color | 0.23 |
+| travel snapshot | 0.23 |
+| vintage film look | 0.22 |
+| minimalist aesthetic | 0.21 |
+| dark moody photography | 0.19 |
+
+→ 순위가 사진 내용과 상식적으로 일치 (초록/여행 톤 높음, dark moody 낮음)
+
+**photo2 (어두운 배경에 조명 받은 장미 매크로 클로즈업)**
+
+| 테마 | 점수 |
+|---|---|
+| travel snapshot | 0.24 |
+| dark moody photography | 0.22 |
+| minimalist aesthetic | 0.22 |
+| vintage film look | 0.21 |
+| green color | 0.20 |
+
+→ "green color" 최하위는 납득되나, "travel snapshot"이 1위로 나온 건 사진 내용(어두운 배경 매크로 샷)과 불일치. "dark moody photography"가 더 높아야 자연스러움
+
+**해석**: CLIP 코사인 유사도는 원래 좁은 범위(대략 0.15~0.35)에 몰리는 특성이 있음(모달리티 갭). photo1처럼 일반적인 풍경 사진에서는 순위가 잘 맞았지만, photo2처럼 저조도·매크로 등 특이한 촬영 조건에서는 CLIP 단독 판단이 흔들릴 수 있음이 실측으로 확인됨. 이는 콜드스타트 baseline의 한계를 보여주는 사례이며, 사용자 피드백 기반 MLP 전환이 필요한 이유를 뒷받침함. 추후 MLP 성능 평가 시 이 photo2 케이스를 "CLIP이 틀렸던 사례"로 참고 가능.
 
 ## 🧪 사용 예시
 
