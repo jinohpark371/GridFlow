@@ -22,7 +22,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 @lru_cache(maxsize=1)
 def _load_model() -> tuple[CLIPModel, CLIPProcessor]:
-    model = CLIPModel.from_pretrained(MODEL_NAME).to(DEVICE).eval()
+    model = CLIPModel.from_pretrained(MODEL_NAME, use_safetensors=True).to(DEVICE).eval()    
     processor = CLIPProcessor.from_pretrained(MODEL_NAME)
     return model, processor
 
@@ -36,7 +36,9 @@ def get_image_embedding(image: Image.Image | str | Path) -> np.ndarray:
 
     inputs = processor(images=image, return_tensors="pt").to(DEVICE)
     with torch.no_grad():
-        features = model.get_image_features(**inputs)
+        # transformers>=5: get_image_features가 512d 텐서 대신 BaseModelOutputWithPooling을
+        # 반환하고, 투영된(512d) 벡터는 .pooler_output에 담겨 있음
+        features = model.get_image_features(**inputs).pooler_output
 
     features = features / features.norm(p=2, dim=-1, keepdim=True)
     return features.squeeze(0).cpu().numpy()
@@ -48,7 +50,7 @@ def get_text_embedding(text: str) -> np.ndarray:
 
     inputs = processor(text=[text], return_tensors="pt", padding=True, truncation=True).to(DEVICE)
     with torch.no_grad():
-        features = model.get_text_features(**inputs)
+        features = model.get_text_features(**inputs).pooler_output
 
     features = features / features.norm(p=2, dim=-1, keepdim=True)
     return features.squeeze(0).cpu().numpy()
