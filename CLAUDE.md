@@ -102,6 +102,12 @@ LLM이 코딩할 때 흔히 저지르는 실수를 줄이기 위한 행동 지�
 - 절차는 `/pr` 커맨드(`.claude/commands/pr.md`) 참고. PR 생성·push는 제목/본문을 먼저 보여주고 승인받은 뒤 진행
 - `gh` CLI 설치됨 (`jinohpark371` 계정 인증 완료, 경로: `C:\Program Files\GitHub CLI\gh.exe`). 기존에 열려있던 셸은 PATH가 갱신 안 됐을 수 있으니 새 셸이거나 전체 경로로 호출
 
+### Issue
+
+- `.github/ISSUE_TEMPLATE/issue-form.md` 양식을 **반드시** 그대로 따른다 (섹션 생략/재구성 금지)
+- 절차는 `/issue` 커맨드(`.claude/commands/issue.md`) 참고. 이슈 생성은 제목/본문을 먼저 보여주고 승인받은 뒤 진행
+- `gh issue create` 사용 (`gh` CLI 정보는 위 PR 항목 참고)
+
 ### 언어
 
 - 사용자와의 대화, 커밋 메시지, 문서(`docs/`)는 모두 한글로 작성
