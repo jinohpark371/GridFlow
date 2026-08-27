@@ -1,0 +1,62 @@
+[
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo3.JPG",
+    "neg": "samples/photo4.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo5.JPG",
+    "neg": "samples/photo7.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo6.JPG",
+    "neg": "samples/photo8.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo15.JPG",
+    "neg": "samples/photo9.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo3.JPG",
+    "neg": "samples/photo11.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo5.JPG",
+    "neg": "samples/photo12.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo6.JPG",
+    "neg": "samples/photo13.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo15.JPG",
+    "neg": "samples/photo14.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo3.JPG",
+    "neg": "samples/photo16.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo5.JPG",
+    "neg": "samples/photo17.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo6.JPG",
+    "neg": "samples/photo18.JPG"
+  },
+  {
+    "theme": "미니멀한 감성 사진",
+    "pos": "samples/photo15.JPG",
+    "neg": "samples/photo19.JPG"
+  }
+]
