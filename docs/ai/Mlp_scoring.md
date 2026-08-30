@@ -40,6 +40,8 @@
   - 이유: Notion 설계 문서의 "약 11차원" 스펙에 맞춤. 색감 피처 세부 구성은 `Color_features.md` 참고
 - 결정: 학습 쌍(pos/neg) 라벨 데이터는 `Ai/data/label_pairs.json`에 `{theme, pos, neg}` 리스트로 저장
   - 이유: 사용자 유지/제외 행동으로부터 자동 수집하는 파이프라인(TODO)이 아직 없어, 학습 루프 자체가 동작하는지부터 검증하기 위해 `samples/`의 사진들로 "미니멀한 감성 사진" 테마 기준 12쌍을 수동 라벨링. pos/neg는 절대 점수가 아니라 상대 비교이므로 CSV보다 스키마 확장(테마 추가 등)이 쉬운 JSON을 선택. 추후 사용자 행동 기반 수집으로 전환해도 같은 포맷을 재사용 가능
+- 결정: `Ai/train_mlp.py`는 미니배치 없이 매 epoch 전체 쌍을 한 번에 통과시키는 풀배치(full-batch) 학습, optimizer는 Adam(lr=1e-3), epochs=100 기본값
+  - 이유: 라벨이 12쌍뿐이라 미니배치로 쪼갤 이유가 없고, 지금 목표는 최적 하이퍼파라미터 탐색이 아니라 학습 루프(forward → loss → backward → step)가 실제로 도는지 검증하는 것이라 합리적인 기본값을 그대로 사용. 데이터가 늘어나면 미니배치/에폭 수 재검토 필요
 - 결정(버그 수정): `filter_by_fitness`/`suggest_removal` 내부에 `_inference_scores` 헬퍼를 추가해 `model.eval()` 후 원래 학습 모드로 복원
   - 이유: 최초 구현 시 `torch.no_grad()`만 사용했는데, 이는 그래디언트 계산만 끌 뿐 `Dropout`은 여전히 활성 상태로 남음. 동일한 11d 입력으로 `filter_by_fitness`와 `suggest_removal`을 연달아 호출했을 때 점수가 서로 달라지는 것을 실측(샘플 사진 2장)으로 확인해 발견 → eval 모드 전환 없이는 추론 결과가 결정적이지 않음
 
@@ -60,7 +62,7 @@ keep_ids, remove_candidates = suggest_removal(model, feats, photo_ids, threshold
 
 ## ⚠️ 알려진 제약 / TODO
 
-- [ ] 아직 학습 루프(옵티마이저, 데이터로더)는 미구현 — 현재는 랜덤 초기화 가중치로, 점수 자체는 의미 없음(피처 파이프라인과 forward shape만 검증됨). 쌍 데이터 자체는 `Ai/data/label_pairs.json`에 12쌍 수동 라벨링 완료
+- [x] 학습 루프는 `Ai/train_mlp.py`에 구현 (Adam + `margin_ranking_loss`, 풀배치). 실측(라벨 12쌍, 100 epoch): loss 0.1836 → 0.0000 — 데이터가 12쌍뿐이라 완전히 암기(overfit)한 수준이지만, 학습 루프 자체가 정상 동작함은 확인됨. 일반화 성능(ranking accuracy 등)은 아래 항목에서 별도 검증 필요
 - [ ] 사용자 유지/제외 행동으로부터 학습 쌍(pos, neg)을 수집·저장하는 파이프라인 미구현 (Notion 설계 문서 8절)
 - [ ] `threshold=0.35`는 설계 문서의 예시값을 그대로 사용 중 — 실 데이터 기반 검증 필요, "상대 기준(그룹 내 하위 N%)" 방식으로 전환 검토 (Notion 설계 문서 7절)
 - [ ] Pairwise accuracy, Precision/Recall 등 평가 지표 측정 로직 미구현

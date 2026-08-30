@@ -34,16 +34,15 @@
 pairs = load_label_pairs()  # Ai/data/label_pairs.json -> [{theme, pos, neg}, ...]
 feats_pos, feats_neg = build_pair_features(pairs)  # (N, 11), (N, 11)
 
-# 이후 학습 스크립트(미구현)에서:
-# score_pos, score_neg = rank_forward(model, feats_pos, feats_neg)
-# loss = margin_ranking_loss(score_pos, score_neg)
+# 학습 스크립트(Ai/train_mlp.py)에서:
+# model, loss_history = train(feats_pos, feats_neg)
 ```
 
 ## ⚠️ 알려진 제약 / TODO
 
 - [ ] 라벨 파일 하나(`Ai/data/label_pairs.json`)만 지원 — 여러 라벨 파일을 합치거나 증분 라벨을 병합하는 기능은 없음
 - [ ] 같은 사진이 여러 쌍에 등장해도 그때마다 CLIP 임베딩을 다시 계산함 — 지금은 라벨이 12쌍뿐이라 문제없지만, 데이터가 늘어나면 사진별 피처 캐싱을 고려해야 함
-- [ ] 학습 스크립트(`Ai/train_mlp.py`) 자체는 아직 미구현 — 이 모듈은 입력 텐서를 만드는 데까지만 책임짐
+- [x] 학습 스크립트는 `Ai/train_mlp.py`에 구현됨 — 이 모듈은 그 입력 텐서를 만드는 데까지만 책임지는 역할 분리 유지
 
 ## 🧪 사용 예시
 
