@@ -72,7 +72,7 @@ def ranknet_loss(score_pos: torch.Tensor, score_neg: torch.Tensor) -> torch.Tens
     return -torch.log(torch.sigmoid(diff)).mean()
 
 
-def _inference_scores(model: ScoringMLP, feats: torch.Tensor) -> torch.Tensor:
+def inference_scores(model: ScoringMLP, feats: torch.Tensor) -> torch.Tensor:
     """Dropout 등 학습 전용 레이어를 끄고(eval) 결정적으로 점수를 계산한 뒤 이전 모드로 복원."""
     was_training = model.training
     model.eval()
@@ -87,7 +87,7 @@ def filter_by_fitness(
     model: ScoringMLP, feats: torch.Tensor, threshold: float = 0.35
 ) -> tuple[list[int], torch.Tensor]:
     """적합도 점수만 계산해 threshold 이상 인덱스를 반환. 순서(argsort)는 여기서 정하지 않는다."""
-    scores = _inference_scores(model, feats)
+    scores = inference_scores(model, feats)
     keep = [i for i, s in enumerate(scores) if s >= threshold]
     return keep, scores
 
@@ -99,7 +99,7 @@ def suggest_removal(
     threshold: float = 0.35,
 ) -> tuple[list[str], list[tuple[str, float]]]:
     """테마 부적합 사진의 제외를 '제안'만 한다 — 자동 삭제 아님, 최종 결정은 사용자."""
-    scores = _inference_scores(model, feats)
+    scores = inference_scores(model, feats)
 
     keep: list[str] = []
     remove_candidates: list[tuple[str, float]] = []
