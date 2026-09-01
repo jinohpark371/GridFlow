@@ -47,7 +47,7 @@
 - 한글로 작성하고, 형식은 `<type>(<scope>): <subject>` (`body`는 필요할 때만)
   - `type`: `feat` · `fix` · `docs` · `style` · `refactor` · `test` · `chore`
   - `scope`: 파트/모듈 단위로 붙인다. 애매하면 생략. 파트별 예시는 해당 파트의 `CLAUDE.md` 참고 (예: [`Ai/CLAUDE.md`](Ai/CLAUDE.md))
-- 커밋 메시지 끝에는 Claude를 기여자로 표시하는 `Co-Authored-By` 트레일러를 포함한다 (임의로 빼지 않는다)
+- `Co-Authored-By` 줄은 추가하지 않는다
 - 사용자가 명시적으로 요청하지 않는 한 커밋·푸시를 임의로 실행하지 않는다
 
 ## PR 작성 규칙
