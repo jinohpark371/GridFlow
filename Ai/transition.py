@@ -1,7 +1,11 @@
 """전이 비용(transition cost) 기반 사진 배치 (흐름도 > 전이 비용 배치 설계).
 
-흐름: (수동 그룹핑 입력) -> 그룹 내 정렬 -> 그룹 대표 사진 선정 -> 그룹 간 정렬
-      -> 그룹 경계 방향(정/역) 조정 -> 최종 순서 + 인접쌍 비용
+흐름: (수동 그룹핑 입력) -> 그룹 내 정렬 -> 그룹 대표 사진 선정 -> 그룹 간 정렬(대표 사진 기준)
+      -> 그룹별 최종 순서 + 그룹 내부 인접쌍 비용
+
+그룹은 화면에서 별도 게시물/섹션으로 분리돼 실제 사진이 그룹 경계에서 맞닿지 않는다 —
+그룹과 그룹 사이를 "이어주는" 건 대표 사진끼리의 비교(그룹 순서 결정)뿐이라, 그룹 경계의
+전이 비용은 계산하지 않는다.
 
 1단계(고정 가중치 MVP) 범위 — w1=w2=w3=1.0 고정. 가중치 학습(TransitionCostModel, 2단계)은
 드래그 재정렬 데이터가 쌓인 뒤 별도 이슈로 다룬다.
@@ -85,49 +89,6 @@ def select_representative(group: list[str], fitness_scores: dict[str, float]) ->
     return max(group, key=lambda pid: fitness_scores[pid])
 
 
-def _optimize_boundaries(
-    group_orders: list[list[str]], color_feats: dict[str, np.ndarray], cost_fn: CostFn
-) -> list[list[str]]:
-    """그룹 경계 이음매 미세조정.
-
-    그룹 내부 순서는 이미 확정됐지만, 경로(path)의 총 내부 비용은 인접쌍 절대차의 합이라
-    방향을 뒤집어도(정방향/역방향) 값이 동일하다 — 이것이 그룹 내부에 남아있는 배치 자유도다.
-    각 그룹을 정방향/역방향 중 어느 쪽으로 놓을지 DP로 골라 인접 그룹 간 경계 비용 합을 최소화한다.
-    """
-    n = len(group_orders)
-    if n <= 1:
-        return group_orders
-
-    inf = float("inf")
-    # dp[i][state]: state=0(정방향)/1(역방향)일 때 그룹 i까지의 누적 경계 비용
-    dp: list[list[float]] = [[0.0, 0.0]]
-    backptr: list[list[int | None]] = [[None, None]]
-
-    def oriented(i: int, state: int) -> list[str]:
-        return group_orders[i] if state == 0 else group_orders[i][::-1]
-
-    for i in range(1, n):
-        dp.append([inf, inf])
-        backptr.append([None, None])
-        for cur_state in (0, 1):
-            cur_first = oriented(i, cur_state)[0]
-            for prev_state in (0, 1):
-                prev_last = oriented(i - 1, prev_state)[-1]
-                candidate = dp[i - 1][prev_state] + cost_fn(color_feats[prev_last], color_feats[cur_first])
-                if candidate < dp[i][cur_state]:
-                    dp[i][cur_state] = candidate
-                    backptr[i][cur_state] = prev_state
-
-    state = 0 if dp[-1][0] <= dp[-1][1] else 1
-    states = [state]
-    for i in range(n - 1, 0, -1):
-        state = backptr[i][state]
-        states.append(state)
-    states.reverse()
-
-    return [oriented(i, states[i]) for i in range(n)]
-
-
 def arrange_photos(
     groups: list[list[str]],
     color_feats: dict[str, np.ndarray],
@@ -136,11 +97,13 @@ def arrange_photos(
     w2: float = 1.0,
     w3: float = 1.0,
     brute_force_max: int = 8,
-) -> tuple[list[str], list[tuple[str, str, float]]]:
-    """전체 배치 파이프라인: 그룹 내 정렬 -> 대표 사진 선정 -> 그룹 간 정렬 -> 경계 조정 -> 최종 순서.
+) -> tuple[list[list[str]], list[list[tuple[str, str, float]]]]:
+    """전체 배치 파이프라인: 그룹 내 정렬 -> 대표 사진 선정 -> 그룹 간 정렬 -> 그룹별 최종 순서.
 
     groups: 촬영 장소/세션 단위로 사용자가 수동 그룹핑한 photo_id 리스트의 리스트 (그룹 자체의 순서는 무관).
-    반환: (최종 photo_id 순서, [(사진A, 사진B, 두 사진 사이 전이 비용), ...] 인접쌍 근거)
+    반환: (그룹별 최종 사진 순서, 그룹별 내부 인접쌍 근거) — 둘 다 그룹 개수·순서가 같은 2차원 리스트.
+      그룹은 화면에서 별도로 분리되므로 그룹 경계의 전이 비용은 계산하지 않는다 — 각 그룹의
+      인접쌍 서브리스트는 그 그룹 "내부" 인접쌍만 담는다(길이 len(group)-1).
     """
     cost_fn = functools.partial(transition_cost, w1=w1, w2=w2, w3=w3)
 
@@ -155,14 +118,15 @@ def arrange_photos(
     group_order_idx = order_items(rep_feats, cost_fn, brute_force_max)
     group_orders = [group_orders[i] for i in group_order_idx]
 
-    group_orders = _optimize_boundaries(group_orders, color_feats, cost_fn)
-
-    final_order = [pid for group in group_orders for pid in group]
     adjacency_costs = [
-        (final_order[i], final_order[i + 1], cost_fn(color_feats[final_order[i]], color_feats[final_order[i + 1]]))
-        for i in range(len(final_order) - 1)
+        [
+            (group[i], group[i + 1], cost_fn(color_feats[group[i]], color_feats[group[i + 1]]))
+            for i in range(len(group) - 1)
+        ]
+        for group in group_orders
     ]
-    return final_order, adjacency_costs
+
+    return group_orders, adjacency_costs
 
 
 if __name__ == "__main__":
@@ -195,6 +159,7 @@ if __name__ == "__main__":
     }
 
     order, adjacency = arrange_photos(groups, color_feats, fitness_scores)
-    print(f"final order: {order}")
-    for a, b, cost in adjacency:
-        print(f"  {a} -> {b}: cost={cost:.4f}")
+    for group_idx, (group_order, group_adjacency) in enumerate(zip(order, adjacency)):
+        print(f"group {group_idx}: {group_order}")
+        for a, b, cost in group_adjacency:
+            print(f"    {a} -> {b}: cost={cost:.4f}")
