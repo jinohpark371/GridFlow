@@ -1,6 +1,6 @@
 """학습된 ScoringMLP의 validation ranking accuracy 확인 + loss curve/점수 분포 시각화.
 
-흐름: Ai/data/label_pairs.json -> dataset.load_label_pairs -> split_pairs로 train(9)/val(3) 고정 분할
+흐름: Ai/data/unsplash/pairs.csv -> dataset.load_label_pairs -> split_pairs로 테마별 train/val 고정 분할
       -> train_mlp.train(train)으로 학습 -> val에 대해 ranking accuracy 측정
       -> loss curve, val 점수 분포를 docs/ai/output/에 PNG로 저장
 """
@@ -21,12 +21,23 @@ from train_mlp import train
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = REPO_ROOT / "docs" / "ai" / "output"
-N_VAL = 3
+N_VAL_PER_THEME = 3
 
 
-def split_pairs(pairs: list[dict], n_val: int = N_VAL) -> tuple[list[dict], list[dict]]:
-    """라벨 쌍을 앞쪽 train / 뒤쪽 val로 고정 분할 (데이터가 12쌍뿐이라 랜덤 분할 대신 고정)."""
-    return pairs[:-n_val], pairs[-n_val:]
+def split_pairs(pairs: list[dict], n_val_per_theme: int = N_VAL_PER_THEME) -> tuple[list[dict], list[dict]]:
+    """테마별로 뒤쪽 n_val_per_theme개를 val, 나머지를 train으로 고정 분할.
+
+    pairs.csv가 테마별로 연속해서 묶여 있어(테마당 15행), 앞/뒤 단순 분할을 하면
+    val이 마지막 테마 하나에만 쏠린다 — 테마마다 나눠야 val이 모든 테마를 대표한다.
+    """
+    train_pairs, val_pairs = [], []
+    by_theme: dict[str, list[dict]] = {}
+    for pair in pairs:
+        by_theme.setdefault(pair["theme"], []).append(pair)
+    for theme_pairs in by_theme.values():
+        train_pairs.extend(theme_pairs[:-n_val_per_theme])
+        val_pairs.extend(theme_pairs[-n_val_per_theme:])
+    return train_pairs, val_pairs
 
 
 def ranking_accuracy(model: ScoringMLP, feats_pos: torch.Tensor, feats_neg: torch.Tensor) -> float:

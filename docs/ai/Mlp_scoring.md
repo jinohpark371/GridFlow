@@ -39,8 +39,9 @@
   - 이유: 설계 문서 요구사항 — 시스템이 임의로 사진을 지우지 않고, 근거(점수)와 함께 사용자에게 제시해 최종 결정은 사용자가 함
 - 결정: 입력 차원 11 = CLIP 유사도(1, `clip.py`) + 색감 피처(10, `features.py`)
   - 이유: Notion 설계 문서의 "약 11차원" 스펙에 맞춤. 색감 피처 세부 구성은 `Color_features.md` 참고
-- 결정: 학습 쌍(pos/neg) 라벨 데이터는 `Ai/data/label_pairs.json`에 `{theme, pos, neg}` 리스트로 저장
-  - 이유: 사용자 유지/제외 행동으로부터 자동 수집하는 파이프라인(TODO)이 아직 없어, 학습 루프 자체가 동작하는지부터 검증하기 위해 `samples/`의 사진들로 "미니멀한 감성 사진" 테마 기준 12쌍을 수동 라벨링. pos/neg는 절대 점수가 아니라 상대 비교이므로 CSV보다 스키마 확장(테마 추가 등)이 쉬운 JSON을 선택. 추후 사용자 행동 기반 수집으로 전환해도 같은 포맷을 재사용 가능
+- 결정(초기, 이후 대체됨): 학습 쌍(pos/neg) 라벨 데이터를 `Ai/data/label_pairs.json`에 `{theme, pos, neg}` 리스트로 저장
+  - 이유: 사용자 유지/제외 행동으로부터 자동 수집하는 파이프라인(TODO)이 아직 없어, 학습 루프 자체가 동작하는지부터 검증하기 위해 `samples/`의 사진들로 "미니멀한 감성 사진" 테마 기준 12쌍을 수동 라벨링. pos/neg는 절대 점수가 아니라 상대 비교이므로 CSV보다 스키마 확장(테마 추가 등)이 쉬운 JSON을 선택
+  - **대체(2026-09-15)**: 실사용자 행동 기반 수집(Notion 설계 문서 8절)을 기다리는 대신, Unsplash API로 규모를 키운 `{theme, pos, neg}` 트리플렛(45쌍, `Ai/data/unsplash/pairs.csv`)으로 전환(이슈 #9) — 원본 이미지 대신 미리 계산한 피처(`photos.csv`)를 `photo_id`로 조회하는 구조라 CSV를 사용. `Ai/data/label_pairs.json`은 삭제됨, 자세한 설계는 `docs/ai/Collect_unsplash_data.md` 참고
 - 결정: `Ai/train_mlp.py`는 미니배치 없이 매 epoch 전체 쌍을 한 번에 통과시키는 풀배치(full-batch) 학습, optimizer는 Adam(lr=1e-3), epochs=100 기본값
   - 이유: 라벨이 12쌍뿐이라 미니배치로 쪼갤 이유가 없고, 지금 목표는 최적 하이퍼파라미터 탐색이 아니라 학습 루프(forward → loss → backward → step)가 실제로 도는지 검증하는 것이라 합리적인 기본값을 그대로 사용. 데이터가 늘어나면 미니배치/에폭 수 재검토 필요
 - 결정: `Ai/evaluate_mlp.py`의 `split_pairs`는 랜덤 분할이 아니라 앞 9쌍(train)/뒤 3쌍(val) 고정 분할
@@ -69,8 +70,8 @@ keep_ids, remove_candidates = suggest_removal(model, feats, photo_ids, threshold
 
 ## ⚠️ 알려진 제약 / TODO
 
-- [x] 학습 루프는 `Ai/train_mlp.py`에 구현 (Adam + `margin_ranking_loss`, 풀배치). 실측(라벨 12쌍, 100 epoch): loss 0.1836 → 0.0000 — 데이터가 12쌍뿐이라 완전히 암기(overfit)한 수준이지만, 학습 루프 자체가 정상 동작함은 확인됨. 일반화 성능(ranking accuracy 등)은 아래 항목에서 별도 검증 필요
-- [x] Validation ranking accuracy 측정 및 loss curve/점수 분포 시각화는 `Ai/evaluate_mlp.py`에 구현 (train 9쌍/val 3쌍 고정 분할). 실측: val ranking accuracy 100%(3/3), loss curve는 20 epoch 안에 0 근처로 수렴, 점수 분포 산점도에서 val 쌍 3개 모두 pos > neg로 분리됨 (`docs/ai/output/loss_curve.png`, `docs/ai/output/score_distribution.png`) — 다만 val이 3쌍뿐이라 100%는 통계적으로 약함(한 쌍만 틀려도 66%로 하락), 데이터가 12쌍뿐인 근본적 한계를 벗어나지 못함
+- [x] 학습 루프는 `Ai/train_mlp.py`에 구현 (Adam + `margin_ranking_loss`, 풀배치). 라벨 데이터는 수동 라벨링(12쌍, `label_pairs.json`)에서 Unsplash API 준자동 수집(`Ai/collect_unsplash_data.py`, 45쌍, `{theme, pos, neg}`)으로 전환됨(이슈 #9) — `dataset.py`가 이제 `Ai/data/unsplash/pairs.csv`+`photos.csv`에서 피처를 조회한다(이미지 재오픈·CLIP 재계산 없음)
+- [x] Validation ranking accuracy 측정 및 loss curve/점수 분포 시각화는 `Ai/evaluate_mlp.py`에 구현. Unsplash 데이터(45쌍)는 테마별로 연속 정렬돼 있어 `split_pairs`를 테마별 고정 분할(테마당 train 12/val 3, 총 train 36/val 9)로 변경 — 단순 앞/뒤 분할은 val이 마지막 테마 하나에만 쏠리는 문제가 있었음. 실측(2026-09-15): loss 0.205 → 0.076(100 epoch, 우하향하나 수렴 전), val ranking accuracy 66.67%(6/9) — 손으로 고른 극단적 대조 사진(미니멀 vs 복잡한 장면)이었던 기존 12쌍과 달리, Unsplash 같은-테마 사진들끼리는 색감 차이가 더 미묘해 분리가 약함 (`docs/ai/output/loss_curve.png`, `docs/ai/output/score_distribution.png`) — 정답 라벨(같은 테마=pos)의 약한 지도(weak supervision) 특성상 어느 정도 예상된 결과, epoch 수를 늘리거나 데이터를 더 모으면 개선 여지 있음
 - [ ] 사용자 유지/제외 행동으로부터 학습 쌍(pos, neg)을 수집·저장하는 파이프라인 미구현 (Notion 설계 문서 8절)
 - [ ] `threshold=0.35`는 설계 문서의 예시값을 그대로 사용 중 — 실 데이터 기반 검증 필요, "상대 기준(그룹 내 하위 N%)" 방식으로 전환 검토 (Notion 설계 문서 7절)
 - [ ] Precision/Recall 등 추가 평가 지표 측정 로직 미구현 (ranking accuracy는 구현됨)
