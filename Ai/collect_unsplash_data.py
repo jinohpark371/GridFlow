@@ -28,15 +28,14 @@ THEMES = [
 ]
 PHOTOS_PER_THEME = 30
 TRIPLETS_PER_THEME = 15
+SEED = 42
 
 UNSPLASH_SEARCH_URL = "https://api.unsplash.com/search/photos"
 
 DATA_DIR = Path(__file__).parent / "data" / "unsplash"
-PHOTOS_CSV_FIELDS = [
-    "photo_id", "query", "unsplash_url", "clip_sim",
-    "mean_h", "mean_s", "mean_v", "sat_std", "val_std", "contrast",
-    "hue_hist_0", "hue_hist_1", "hue_hist_2", "hue_hist_3",
-]
+SCALAR_FEATURE_FIELDS = ["clip_sim", "mean_h", "mean_s", "mean_v", "sat_std", "val_std", "contrast"]
+FEATURE_FIELDS = SCALAR_FEATURE_FIELDS + [f"hue_hist_{i}" for i in range(HUE_HIST_BINS)]
+PHOTOS_CSV_FIELDS = ["photo_id", "query", "unsplash_url"] + FEATURE_FIELDS
 PAIRS_CSV_FIELDS = ["theme", "pos", "neg"]
 
 
@@ -87,26 +86,28 @@ def photo_to_row(photo: dict, theme: str) -> dict | None:
         "photo_id": photo["id"],
         "query": theme,
         "unsplash_url": photo["links"]["html"],
-        "clip_sim": float(feats[0]),
-        "mean_h": float(feats[1]),
-        "mean_s": float(feats[2]),
-        "mean_v": float(feats[3]),
-        "sat_std": float(feats[4]),
-        "val_std": float(feats[5]),
-        "contrast": float(feats[6]),
     }
-    for i in range(HUE_HIST_BINS):
-        row[f"hue_hist_{i}"] = float(feats[7 + i])
+    row.update(zip(FEATURE_FIELDS, (float(x) for x in feats)))
     return row
 
 
 def collect_all_photos(themes: list[str], access_key: str, per_page: int) -> list[dict]:
-    """테마 리스트 전체를 검색해 피처 행 리스트로 변환 (다운로드 실패 사진은 제외)."""
+    """테마 리스트 전체를 검색해 피처 행 리스트로 변환.
+
+    다운로드 실패 사진은 제외하고, 테마 간 중복 photo_id는 먼저 등장한 테마 쪽만 남긴다
+    (같은 사진이 여러 테마 검색에 걸리면 photo_id 유일성이 깨지고, sample_triplets의
+    neg 풀이 실제로는 해당 테마 사진을 포함하게 되는 문제를 방지).
+    """
     rows = []
+    seen_ids: set[str] = set()
     for theme in themes:
         for photo in search_photos(theme, access_key, per_page):
+            photo_id = photo["id"]
+            if photo_id in seen_ids:
+                continue
             row = photo_to_row(photo, theme)
             if row is not None:
+                seen_ids.add(photo_id)
                 rows.append(row)
     return rows
 
@@ -131,6 +132,6 @@ if __name__ == "__main__":
     write_csv(photo_rows, DATA_DIR / "photos.csv", PHOTOS_CSV_FIELDS)
     print(f"photos.csv: {len(photo_rows)}장 저장")
 
-    triplets = sample_triplets(photo_rows, TRIPLETS_PER_THEME, random.Random())
+    triplets = sample_triplets(photo_rows, TRIPLETS_PER_THEME, random.Random(SEED))
     write_csv(triplets, DATA_DIR / "pairs.csv", PAIRS_CSV_FIELDS)
     print(f"pairs.csv: {len(triplets)}행 저장")

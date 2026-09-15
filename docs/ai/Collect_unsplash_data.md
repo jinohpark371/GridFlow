@@ -3,7 +3,7 @@
 > 작성일: 2026-09-14 · 작성자: 진오 · 관련 이슈: #9
 
 ## 📌 목적
-`transition.py`의 고정 가중치(w1=w2=w3=1.0)를 실제 취향에 맞게 학습시킬 2단계 `TransitionCostModel`용 라벨 데이터를, 실사용자 트래픽 없이 Unsplash API로 준자동 생성한다. 같은 테마 검색 쿼리 결과끼리는 이미 같은 무드로 묶여 있다는 점을 약한 지도(weak supervision) 신호로 삼아 `{theme, pos, neg}` 트리플렛을 만든다.
+`transition.py`(별도 브랜치, 아직 미병합)의 고정 가중치(w1=w2=w3=1.0)를 실제 취향에 맞게 학습시킬 2단계 `TransitionCostModel`용 라벨 데이터를, 실사용자 트래픽 없이 Unsplash API로 준자동 생성한다. 같은 테마 검색 쿼리 결과끼리는 이미 같은 무드로 묶여 있다는 점을 약한 지도(weak supervision) 신호로 삼아 `{theme, pos, neg}` 트리플렛을 만든다.
 
 ## 🧭 파이프라인 상 위치
 전체 아키텍처 순서도 기준 "Unsplash API 기반 전이 비용 학습 데이터 수집 설계" 단계이며, `mlp.py`의 `build_feature_vector`(CLIP 유사도 + 색감 피처)를 재사용해 사진 피처를 뽑고, 그 결과물(`Ai/data/unsplash/*.csv`)은 이후 별도 이슈에서 진행할 `TransitionCostModel` 학습의 입력이 된다.
@@ -78,5 +78,5 @@ python Ai/collect_unsplash_data.py
 
 - Notion "Unsplash API 기반 전이 비용 학습 데이터 수집 설계" — https://app.notion.com/p/3d0d1ebe485381fc8a38c149a77e7e8c
 - `docs/ai/Mlp_scoring.md` — `build_feature_vector`(11d) 세부 설계, `{theme, pos, neg}` 스키마 철학의 원형
-- `docs/ai/Transition.md` — 이 데이터로 학습할 `TransitionCostModel`이 대체할 1단계 고정 가중치 설계
+- `docs/ai/Transition.md` (별도 브랜치, 아직 미병합) — 이 데이터로 학습할 `TransitionCostModel`이 대체할 1단계 고정 가중치 설계
 - 관련 이슈: #9

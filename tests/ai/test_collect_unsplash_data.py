@@ -5,9 +5,10 @@
 
 import random
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from collect_unsplash_data import sample_triplets, write_csv
+from collect_unsplash_data import collect_all_photos, sample_triplets, write_csv
 
 
 def _fake_photo_rows(theme: str, count: int) -> list[dict]:
@@ -41,6 +42,35 @@ def test_sample_triplets_raises_when_theme_pool_too_small():
 
     with pytest.raises(ValueError):
         sample_triplets(rows, triplets_per_theme=3, rng=random.Random(0))
+
+
+def test_collect_all_photos_dedupes_cross_theme_photo_ids():
+    """같은 photo_id가 여러 테마 검색 결과에 걸리면 먼저 등장한 테마 쪽만 남아야 함."""
+    theme_a = "minimalist aesthetic photography"
+    theme_b = "vintage retro film photography"
+
+    search_results = {
+        theme_a: [{"id": "shared_1"}, {"id": "only_a"}],
+        theme_b: [{"id": "shared_1"}, {"id": "only_b"}],
+    }
+
+    def fake_search_photos(theme, access_key, per_page):
+        return search_results[theme]
+
+    def fake_photo_to_row(photo, theme):
+        return {"photo_id": photo["id"], "query": theme}
+
+    with patch("collect_unsplash_data.search_photos", side_effect=fake_search_photos), \
+            patch("collect_unsplash_data.photo_to_row", side_effect=fake_photo_to_row):
+        rows = collect_all_photos([theme_a, theme_b], access_key="dummy", per_page=2)
+
+    photo_ids = [row["photo_id"] for row in rows]
+    assert photo_ids.count("shared_1") == 1
+
+    shared_row = next(row for row in rows if row["photo_id"] == "shared_1")
+    assert shared_row["query"] == theme_a
+
+    assert {row["photo_id"] for row in rows} == {"shared_1", "only_a", "only_b"}
 
 
 def test_write_csv_writes_header_and_rows_to_file(tmp_path: Path):

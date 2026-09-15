@@ -32,16 +32,12 @@ def test_search_photos_returns_requested_count():
 
 @requires_key
 def test_photo_to_row_has_11d_feature_columns():
-    from collect_unsplash_data import photo_to_row, search_photos
+    from collect_unsplash_data import FEATURE_FIELDS, photo_to_row, search_photos
 
     photo = search_photos("minimalist aesthetic photography", ACCESS_KEY, per_page=1)[0]
 
     row = photo_to_row(photo, "minimalist aesthetic photography")
 
     assert row is not None
-    feature_keys = [
-        "clip_sim", "mean_h", "mean_s", "mean_v", "sat_std", "val_std", "contrast",
-        "hue_hist_0", "hue_hist_1", "hue_hist_2", "hue_hist_3",
-    ]
-    for key in feature_keys:
+    for key in FEATURE_FIELDS:
         assert np.isfinite(row[key])
