@@ -1,6 +1,6 @@
 ---
 description: 대화 맥락 또는 지정한 내용으로 이슈 제목/본문을 작성하고, 가능하면 실제로 생성한다
-allowed-tools: Bash(git status), Bash(git branch *), Bash(git remote *), Bash(gh --version), Bash(gh auth status), Bash(gh issue create *), Bash(gh issue list *), Read
+allowed-tools: Bash(git status), Bash(git branch *), Bash(git remote *), Bash(git fetch *), Bash(git checkout *), Bash(git pull *), Bash(gh --version), Bash(gh auth status), Bash(gh issue create *), Bash(gh issue list *), Read
 ---
 
 # 이슈 생성
@@ -41,6 +41,8 @@ allowed-tools: Bash(git status), Bash(git branch *), Bash(git remote *), Bash(gh
      EOF
      )"` 실행
    - 생성된 이슈 URL을 사용자에게 전달
+   - 이슈 번호가 나오면, **브랜치명을 사용자에게 먼저 물어본다** — 기존 브랜치 양식(`<타입>/<한글-설명>/<이슈번호>`, 예: `feature/전이-비용-배치/7`)에 맞춘 이름을 추천하되, 최종 이름은 사용자 확인을 받는다
+   - 확인받은 브랜치명으로 **`develop` 기반**에서 새 브랜치를 생성한다: `git fetch origin develop && git checkout -b <브랜치명> origin/develop`
 
 3. **`gh`가 없거나 미인증이면**
    - `git remote get-url origin`에서 `<owner>/<repo>`를 파싱해 새 이슈 작성 URL을 만들어 전달:
@@ -54,3 +56,4 @@ allowed-tools: Bash(git status), Bash(git branch *), Bash(git remote *), Bash(gh
 - 이슈 생성은 공유 상태를 바꾸는 행동 — **제목/본문을 반드시 먼저 보여주고 승인받는다**
 - 라벨(`labels`), 담당자(`assignees`)는 템플릿상 비어있으므로 사용자가 명시적으로 요청했을 때만 추가
 - 여러 작업이 섞여 있으면 하나의 이슈로 뭉치지 말고, 이슈를 나눠야 하는지 먼저 사용자에게 확인
+- 브랜치 생성은 `gh`로 이슈를 실제 생성한 경우에만 진행한다 (이슈 번호가 있어야 브랜치명에 붙일 수 있음). 생성 전 `git status`로 현재 작업 중인 변경사항이 없는지 확인 — 있으면 먼저 커밋/스태시 여부를 사용자에게 확인한다

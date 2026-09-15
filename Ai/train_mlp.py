@@ -1,6 +1,6 @@
 """ScoringMLP 학습 스크립트 (rank_forward + margin_ranking_loss).
 
-흐름: Ai/data/label_pairs.json -> dataset.load_label_pairs -> dataset.build_pair_features
+흐름: Ai/data/unsplash/pairs.csv -> dataset.load_label_pairs -> dataset.build_pair_features
       -> ScoringMLP를 pairwise ranking loss로 학습
 """
 

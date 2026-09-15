@@ -8,18 +8,20 @@ import pytest
 import torch
 from torch import nn
 
-from evaluate_mlp import N_VAL, plot_loss_curve, plot_score_distribution, ranking_accuracy, split_pairs
+from evaluate_mlp import N_VAL_PER_THEME, plot_loss_curve, plot_score_distribution, ranking_accuracy, split_pairs
 
 
-def test_split_pairs_default_keeps_9_train_3_val():
-    pairs = [{"theme": "t", "pos": f"p{i}", "neg": f"n{i}"} for i in range(12)]
+def test_split_pairs_splits_each_theme_separately_not_just_the_last_rows():
+    """테마별로 연속해서 묶인 입력이라도, val이 한 테마에만 쏠리지 않고 테마마다 나뉘어야 한다."""
+    pairs = [{"theme": "a", "pos": f"pa{i}", "neg": f"na{i}"} for i in range(15)]
+    pairs += [{"theme": "b", "pos": f"pb{i}", "neg": f"nb{i}"} for i in range(15)]
 
     train_pairs, val_pairs = split_pairs(pairs)
 
-    assert len(train_pairs) == 12 - N_VAL
-    assert len(val_pairs) == N_VAL
-    assert train_pairs == pairs[: 12 - N_VAL]
-    assert val_pairs == pairs[12 - N_VAL :]
+    assert len(val_pairs) == 2 * N_VAL_PER_THEME
+    assert len(train_pairs) == len(pairs) - 2 * N_VAL_PER_THEME
+    assert sum(1 for p in val_pairs if p["theme"] == "a") == N_VAL_PER_THEME
+    assert sum(1 for p in val_pairs if p["theme"] == "b") == N_VAL_PER_THEME
 
 
 class _SumModel(nn.Module):
