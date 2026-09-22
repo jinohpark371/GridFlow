@@ -11,6 +11,7 @@ import torch
 from dataset import (
     DEFAULT_PAIRS_PATH,
     DEFAULT_PHOTOS_PATH,
+    DEFAULT_SCORING_PHOTOS_PATH,
     FEATURE_FIELDS,
     build_pair_features,
     load_label_pairs,
@@ -110,9 +111,9 @@ def test_sample_theme_pair_features_pos_pair_shares_theme_and_neg_pair_does_not(
 
 
 def test_default_paths_point_to_valid_committed_data():
-    """저장소에 커밋된 실제 데이터(Ai/data/unsplash/*.csv)가 스키마를 지키는지 확인."""
+    """저장소에 커밋된 실제 데이터(scoring_pairs.csv/scoring_photos.csv)가 스키마를 지키는지 확인."""
     pairs = load_label_pairs(DEFAULT_PAIRS_PATH)
-    photo_features = load_photo_features(DEFAULT_PHOTOS_PATH)
+    photo_features = load_photo_features(DEFAULT_SCORING_PHOTOS_PATH)
 
     assert len(pairs) > 0
     for pair in pairs:
@@ -125,3 +126,11 @@ def test_default_paths_point_to_valid_committed_data():
     assert feats_neg.shape == (len(pairs), len(FEATURE_FIELDS))
     assert torch.isfinite(feats_pos).all()
     assert torch.isfinite(feats_neg).all()
+
+
+def test_default_photos_path_still_points_to_full_transition_data():
+    """DEFAULT_PHOTOS_PATH(photos.csv)는 TransitionCostModel용 — scoring 데이터와 분리돼 있어야 함."""
+    features, by_theme = load_photo_pool(DEFAULT_PHOTOS_PATH)
+
+    assert len(features) > len(by_theme)  # 여러 테마에 걸쳐 다수의 사진이 있어야 함
+    assert len(by_theme) >= 2

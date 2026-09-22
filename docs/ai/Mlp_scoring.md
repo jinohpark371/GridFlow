@@ -24,6 +24,8 @@
 | `filter_by_fitness` | `model, feats, threshold=0.35` | `(keep_idx, scores)` | threshold 이상 인덱스만 반환, 순서는 정하지 않음 |
 | `suggest_removal` | `model, feats, photo_ids, threshold=0.35` | `(keep_ids, remove_candidates)` | 제외 "제안" 목록만 생성 (자동 삭제 아님) |
 | `inference_scores` | `model, feats` | `torch.Tensor` (shape `(N,)`) | eval 모드로 결정적으로 점수 계산 후 이전 모드로 복원 (Dropout 끔) |
+| `save_checkpoint` | `model, path`(기본 `Ai/checkpoints/scoring_mlp.pt`) | `None` | 학습된 가중치(`state_dict`) 저장 |
+| `load_checkpoint` | `path`(기본 위와 동일) | `ScoringMLP` (eval 모드) | 저장된 가중치를 불러와 즉시 추론 가능한 모델로 복원 |
 
 ## 🧠 설계 결정과 이유
 
@@ -72,7 +74,7 @@ keep_ids, remove_candidates = suggest_removal(model, feats, photo_ids, threshold
 
 - [x] 학습 루프는 `Ai/train_mlp.py`에 구현 (Adam + `margin_ranking_loss`, 풀배치). 원래 라벨 데이터는 수동 라벨링(12쌍, `label_pairs.json`)이었음
 - [x] Validation ranking accuracy 측정 및 loss curve/점수 분포 시각화는 `Ai/evaluate_mlp.py`에 구현
-- **되돌림(2026-09-22)**: 한때 `Ai/data/unsplash/pairs.csv`(Unsplash 준자동 수집, 테마 3개를 돌아가며 pos/neg 구성)로 `dataset.py`/`evaluate_mlp.py`를 전환해 재학습해봤으나(val ranking accuracy 55.56~77.78%로 낮게 나옴), 원인을 분석해보니 **데이터 품질이 아니라 모델 구조 자체가 이 문제와 안 맞았음** — `ScoringMLP`는 사진 한 장의 절대 점수를 매기는 모델인데, "테마를 돌아가며 pos/neg 구성"하는 데이터는 같은 사진이 어떤 트리플렛에서는 pos, 다른 트리플렛에서는 neg로 동시에 등장하는 구조적 모순이 있음(테마를 색감이 더 뚜렷하게 갈리게 바꿨더니 오히려 정확도가 더 떨어진 게 근거). `ScoringMLP`는 원래 설계대로 **"고정된 테마 하나" 기준 절대 점수**(`filter_by_fitness`, `suggest_removal`)에만 쓰는 게 맞고, "사진 두 장이 서로 어울리는가"는 별도의 페어와이즈 모델(`Ai/transition_cost_model.py`, val 93.33%로 훨씬 잘 됨)로 분리함. `dataset.py`는 원래대로 `Ai/data/label_pairs.json` 기준 로딩으로 되돌리는 것을 권장 — 자세한 경위는 `docs/ai/Transition_cost_model.md` 참고
+- **원인 규명 + 재정비(2026-09-22)**: 한때 `Ai/data/unsplash/pairs.csv`(Unsplash 준자동 수집, 테마 3개를 돌아가며 pos/neg 구성)로 `dataset.py`/`evaluate_mlp.py`를 전환해 재학습해봤으나(val ranking accuracy 55.56~77.78%로 낮게 나옴), 원인을 분석해보니 **데이터 품질이 아니라 모델 구조 자체가 이 문제와 안 맞았음** — `ScoringMLP`는 사진 한 장의 절대 점수를 매기는 모델인데, "테마를 돌아가며 pos/neg 구성"하는 데이터는 같은 사진이 어떤 트리플렛에서는 pos, 다른 트리플렛에서는 neg로 동시에 등장하는 구조적 모순이 있음(테마를 색감이 더 뚜렷하게 갈리게 바꿨더니 오히려 정확도가 더 떨어진 게 근거). `ScoringMLP`는 원래 설계대로 **"고정된 테마 하나" 기준 절대 점수**(`filter_by_fitness`, `suggest_removal`)에만 쓰는 게 맞고, "사진 두 장이 서로 어울리는가"는 별도의 페어와이즈 모델(`Ai/transition_cost_model.py`, val 93.33%로 훨씬 잘 됨)로 분리함. 처음엔 `Ai/data/label_pairs.json`(초기 프로토타입 시절 "미니멀한 감성 사진" 테마, 지금 방향과 안 맞음)로 되돌리는 걸 고려했으나, `Ai/build_scoring_theme_data.py`를 새로 만들어 **Unsplash 테마 중 하나(`black and white monochrome photography`)를 고정 테마로 삼아** 재구성 — pos는 그 테마로 수집된 사진(clip_sim 그대로), neg는 다른 테마 사진을 원본에서 다시 받아 그 고정 테마 기준으로 clip_sim만 재계산. 결과: `Ai/data/unsplash/scoring_pairs.csv`(15쌍, 단일 고정 테마) 기준 **val ranking accuracy 100%(3/3)** — 구조적 모순만 없애면 Unsplash 데이터로도 잘 됨을 재확인. 체크포인트는 `Ai/checkpoints/scoring_mlp.pt`에 저장(`save_checkpoint`/`load_checkpoint` 신규). 자세한 경위는 `docs/ai/Transition_cost_model.md`, `docs/ai/Build_scoring_theme_data.md` 참고
 - [ ] 사용자 유지/제외 행동으로부터 학습 쌍(pos, neg)을 수집·저장하는 파이프라인 미구현 (Notion 설계 문서 8절)
 - [ ] `threshold=0.35`는 설계 문서의 예시값을 그대로 사용 중 — 실 데이터 기반 검증 필요, "상대 기준(그룹 내 하위 N%)" 방식으로 전환 검토 (Notion 설계 문서 7절)
 - [ ] Precision/Recall 등 추가 평가 지표 측정 로직 미구현 (ranking accuracy는 구현됨)
