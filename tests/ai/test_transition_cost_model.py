@@ -6,7 +6,7 @@
 
 import torch
 from mlp import INPUT_DIM
-from transition_cost_model import TransitionCostModel, pair_cost, train
+from transition_cost_model import TransitionCostModel, load_checkpoint, pair_cost, save_checkpoint, train
 
 
 def test_pair_cost_is_symmetric_regardless_of_argument_order():
@@ -43,6 +43,22 @@ def test_train_returns_a_transition_cost_model_and_full_loss_history():
 
     assert isinstance(model, TransitionCostModel)
     assert len(loss_history) == 5
+
+
+def test_save_and_load_checkpoint_round_trips_same_weights(tmp_path):
+    checkpoint_path = tmp_path / "transition_cost_model.pt"
+    model = TransitionCostModel()
+    feat_a = torch.randn(3, INPUT_DIM)
+    feat_b = torch.randn(3, INPUT_DIM)
+    model.eval()
+    cost_before = pair_cost(model, feat_a, feat_b)
+
+    save_checkpoint(model, checkpoint_path)
+    loaded = load_checkpoint(checkpoint_path)
+
+    assert checkpoint_path.exists()
+    cost_after = pair_cost(loaded, feat_a, feat_b)
+    assert torch.allclose(cost_before, cost_after)
 
 
 def test_train_converges_close_to_zero_on_a_fixed_batch():

@@ -4,6 +4,7 @@
       train/val 쌍 각각 샘플링 -> transition_cost_model.train(train)으로 학습
       -> val에 대해 "cost(pos_pair) < cost(neg_pair)" 비율 측정
       -> loss curve, val 비용 분포를 docs/ai/output/에 PNG로 저장
+      -> 학습된 가중치를 Ai/checkpoints/transition_cost_model.pt로 저장
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ import matplotlib.pyplot as plt
 import torch
 
 from dataset import load_photo_pool, sample_theme_pair_features
-from transition_cost_model import TransitionCostModel, pair_cost, train
+from transition_cost_model import CHECKPOINT_PATH, TransitionCostModel, pair_cost, save_checkpoint, train
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = REPO_ROOT / "docs" / "ai" / "output"
@@ -96,3 +97,6 @@ if __name__ == "__main__":
 
     print(f"저장: {OUTPUT_DIR / 'transition_loss_curve.png'}")
     print(f"저장: {OUTPUT_DIR / 'transition_cost_distribution.png'}")
+
+    save_checkpoint(model)
+    print(f"체크포인트 저장: {CHECKPOINT_PATH}")

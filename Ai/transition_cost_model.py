@@ -10,6 +10,8 @@ mlp.py의 ScoringMLP(사진 한 장 -> 테마 적합도 점수, 절대 점수형
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 
@@ -17,6 +19,7 @@ from mlp import INPUT_DIM, margin_ranking_loss
 
 DEFAULT_EPOCHS = 100
 DEFAULT_LR = 1e-3
+CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "transition_cost_model.pt"
 
 
 class TransitionCostModel(nn.Module):
@@ -70,6 +73,20 @@ def train(
         loss_history.append(loss.item())
 
     return model, loss_history
+
+
+def save_checkpoint(model: TransitionCostModel, path: Path = CHECKPOINT_PATH) -> None:
+    """학습된 모델 가중치를 저장 — 이후 세션/백엔드에서 재학습 없이 불러다 쓰기 위함."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), path)
+
+
+def load_checkpoint(path: Path = CHECKPOINT_PATH) -> TransitionCostModel:
+    """저장된 가중치를 불러와 eval 모드(Dropout 끔) TransitionCostModel로 복원."""
+    model = TransitionCostModel()
+    model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
+    model.eval()
+    return model
 
 
 if __name__ == "__main__":

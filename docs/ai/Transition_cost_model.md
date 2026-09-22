@@ -10,7 +10,7 @@ Unsplash 데이터 수집(`collect_unsplash_data.py`)의 `photos.csv`를 입력�
 
 - Layer: Layer 2 · 배치(순서 결정) — 전이 비용 학습
 - 이전 단계: `Ai/collect_unsplash_data.py`가 만든 `photos.csv`(사진별 11차원 피처 + 테마)
-- 다음 단계: 없음 — 체크포인트 저장, 실제 배치 파이프라인(`arrange_photos`) 연동은 범위 밖(이슈 #13 이후)
+- 다음 단계: 저장된 체크포인트(`Ai/checkpoints/transition_cost_model.pt`)를 백엔드(이슈 #8)에서 로딩해 서빙. 실제 배치 파이프라인(`arrange_photos`, 별도 브랜치에서 삭제됨)과의 재연동은 범위 밖
 
 ## 🔧 입출력 스펙
 
@@ -21,6 +21,8 @@ Unsplash 데이터 수집(`collect_unsplash_data.py`)의 `photos.csv`를 입력�
 | `train` | `feat_pos_a, feat_pos_b, feat_neg_a, feat_neg_b` | `(TransitionCostModel, loss_history)` | pos_pair(같은 테마) 비용 < neg_pair(다른 테마) 비용이 되도록 풀배치 학습 |
 | `dataset.load_photo_pool` | `path`(기본 `photos.csv`) | `(photo_id -> 피처, 테마 -> photo_id 리스트)` | 테마별 그룹 정보까지 한 번에 로딩 |
 | `dataset.sample_theme_pair_features` | `features, by_theme, n_pairs, rng` | `(feat_pos_a, feat_pos_b, feat_neg_a, feat_neg_b)` | 같은 테마 2장(pos_pair)/다른 테마 2장(neg_pair)을 무작위 샘플링 |
+| `save_checkpoint` | `model, path`(기본 `Ai/checkpoints/transition_cost_model.pt`) | `None` | 학습된 가중치(`state_dict`) 저장 |
+| `load_checkpoint` | `path`(기본 위와 동일) | `TransitionCostModel` (eval 모드) | 저장된 가중치를 불러와 즉시 추론 가능한 모델로 복원 |
 
 ## 🧠 설계 결정과 이유
 
@@ -35,6 +37,8 @@ Unsplash 데이터 수집(`collect_unsplash_data.py`)의 `photos.csv`를 입력�
   - 이유: 트리플렛 구조는 "사진 한 장 vs 테마"를 비교하던 옛 스키마의 흔적이라 페어와이즈 학습엔 안 맞음. `photos.csv`(사진별 테마 라벨)만 있으면 "같은 테마 2장"/"다른 테마 2장"을 그때그때 뽑을 수 있어 더 유연함 — `pairs.csv`는 더 이상 이 학습에 쓰이지 않음(트리플렛 스키마 자체가 필요 없어짐)
 - 결정: train 60쌍/val 15쌍을 매번 새로 무작위 샘플링(고정 분할 파일 없음), `SEED=42`로 재현성만 확보
   - 이유: `photos.csv`(테마당 대표 사진 15장, 총 45장)에서 조합 가능한 같은/다른 테마 쌍이 매우 많아(같은 테마 쌍만 해도 테마당 `15*14/2=105`개) 굳이 고정 파일로 나눌 필요 없이 그때그때 샘플링. 시드만 고정해 실행마다 같은 결과가 나오게 함
+- 결정: `save_checkpoint`/`load_checkpoint`는 `evaluate_transition_cost_model.py`가 val 정확도까지 확인한 모델(train 60쌍만 학습, val 15쌍은 검증용으로 남김)을 그대로 저장 — 저장 전 val을 합쳐 재학습하는 별도 단계는 두지 않음
+  - 이유: 지금 목표는 "페어와이즈 구조가 실제로 통하는지" 검증이라, val을 버리지 않고 쓰는 최적화보다 검증된 모델을 그대로 남기는 쪽이 단순하고, 데이터도 45장뿐이라 그 차이가 크지 않음. `torch.load`는 `weights_only=True`로 호출 — 신뢰 못 하는 체크포인트를 불러올 때 임의 코드 실행을 막는 최신 권장 설정
 
 ## ⚙️ 동작 흐름
 
@@ -58,7 +62,7 @@ cost = pair_cost(model, feat_a, feat_b)  # 사진 두 장 -> 비용 점수 (낮�
 
 ## ⚠️ 알려진 제약 / TODO
 
-- [ ] 학습된 `TransitionCostModel`을 저장(`torch.save`)하는 로직 없음 — 스크립트 종료 시 사라짐(이슈 #13 다음 작업)
+- [x] 학습된 `TransitionCostModel` 저장 — `save_checkpoint`/`load_checkpoint` 추가, `Ai/checkpoints/transition_cost_model.pt`(약 41KB)로 커밋됨
 - [ ] 실제 배치 파이프라인(`arrange_photos`, 별도 브랜치에서 삭제됨)과의 연동은 범위 밖 — 재구현 필요
 - [ ] val 15쌍은 통계적으로 크지 않음(한 쌍 틀리면 93.33%→86.67%) — 데이터가 더 쌓이면 재검증 필요
 - [ ] `Ai/data/unsplash/pairs.csv`는 이제 이 모델 학습에 쓰이지 않음 — `mlp.py` 쪽 재학습 실험이 실은 잘못된 전제였다는 게 이번에 확인됨(`docs/ai/Mlp_scoring.md` 참고), `pairs.csv`/트리플렛 스키마 자체를 유지할지 재검토 필요
