@@ -8,11 +8,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from collect_unsplash_data import collect_all_photos, sample_triplets, write_csv
+from collect_unsplash_data import collect_all_photos, filter_representative_photos, sample_triplets, write_csv
 
 
 def _fake_photo_rows(theme: str, count: int) -> list[dict]:
     return [{"photo_id": f"{theme}_{i}", "query": theme} for i in range(count)]
+
+
+def _fake_photo_row_with_color(photo_id: str, theme: str, h: float, s: float = 0.5, v: float = 0.5) -> dict:
+    return {"photo_id": photo_id, "query": theme, "mean_h": h, "mean_s": s, "mean_v": v}
 
 
 def test_sample_triplets_returns_requested_count_per_theme():
@@ -71,6 +75,35 @@ def test_collect_all_photos_dedupes_cross_theme_photo_ids():
     assert shared_row["query"] == theme_a
 
     assert {row["photo_id"] for row in rows} == {"shared_1", "only_a", "only_b"}
+
+
+def test_filter_representative_photos_keeps_photos_closest_to_theme_centroid():
+    """centroid(hue 0.5 근방)에서 먼 사진은 걸러지고, 가까운 top_n장만 남아야 함."""
+    theme = "minimal"
+    rows = [
+        _fake_photo_row_with_color("close_1", theme, h=0.50),
+        _fake_photo_row_with_color("close_2", theme, h=0.55),
+        _fake_photo_row_with_color("close_3", theme, h=0.45),
+        _fake_photo_row_with_color("far_1", theme, h=0.95),  # centroid에서 가장 멂
+        _fake_photo_row_with_color("far_2", theme, h=0.05),
+    ]
+
+    representative = filter_representative_photos(rows, top_n=3)
+
+    kept_ids = {row["photo_id"] for row in representative}
+    assert kept_ids == {"close_1", "close_2", "close_3"}
+
+
+def test_filter_representative_photos_keeps_each_theme_independent():
+    rows = (
+        [_fake_photo_row_with_color(f"a{i}", "theme_a", h=0.5) for i in range(4)]
+        + [_fake_photo_row_with_color(f"b{i}", "theme_b", h=0.1) for i in range(4)]
+    )
+
+    representative = filter_representative_photos(rows, top_n=2)
+
+    assert sum(1 for row in representative if row["query"] == "theme_a") == 2
+    assert sum(1 for row in representative if row["query"] == "theme_b") == 2
 
 
 def test_write_csv_writes_header_and_rows_to_file(tmp_path: Path):

@@ -1,7 +1,8 @@
 """Unsplash API 기반 전이 비용 학습 데이터 수집 (흐름도 > Unsplash API 기반 전이 비용 학습 데이터 수집 설계).
 
 흐름: 테마 검색어 -> Unsplash /search/photos -> 사진마다 build_feature_vector(11d)로 피처만 추출
-      -> photos.csv 저장 -> 같은 테마=pos/다른 테마=neg로 트리플렛 샘플링 -> pairs.csv 저장
+      -> photos.csv 저장 -> 테마 대표 색감(centroid)과 가까운 사진만 남김
+      -> 같은 테마=pos/다른 테마=neg로 트리플렛 샘플링 -> pairs.csv 저장
 
 2단계 TransitionCostModel 학습용 라벨 데이터를 실사용자 트래픽 없이 준자동으로 만들기 위한 수집 스크립트.
 """
@@ -22,12 +23,13 @@ from features import HUE_HIST_BINS
 from mlp import build_feature_vector
 
 THEMES = [
-    "minimalist aesthetic photography",
-    "vintage retro film photography",
-    "moody urban night photography",
+    "black and white monochrome photography",
+    "vibrant colorful photography",
+    "warm golden hour sunset photography",
 ]
 PHOTOS_PER_THEME = 30
 TRIPLETS_PER_THEME = 15
+REPRESENTATIVE_POOL_SIZE = 15
 SEED = 42
 
 UNSPLASH_SEARCH_URL = "https://api.unsplash.com/search/photos"
@@ -37,6 +39,32 @@ SCALAR_FEATURE_FIELDS = ["clip_sim", "mean_h", "mean_s", "mean_v", "sat_std", "v
 FEATURE_FIELDS = SCALAR_FEATURE_FIELDS + [f"hue_hist_{i}" for i in range(HUE_HIST_BINS)]
 PHOTOS_CSV_FIELDS = ["photo_id", "query", "unsplash_url"] + FEATURE_FIELDS
 PAIRS_CSV_FIELDS = ["theme", "pos", "neg"]
+
+
+def filter_representative_photos(photo_rows: list[dict], top_n: int) -> list[dict]:
+    """수집된 사진 행(테마별) -> 테마 대표 색감(centroid)과 가까운 top_n장만 남김.
+
+    검색 쿼리(테마)가 같아도 실제 색감은 꽤 다른 사진이 섞여 있을 수 있어(약한 지도의
+    한계), 테마 안에서도 색감이 이질적인 사진을 pos/neg 후보에서 미리 걸러내 라벨
+    신호를 더 뚜렷하게 만든다. 거리 = |hue 차이| + |saturation 차이| + |value 차이|
+    (가중치 동일) — transition_cost와 같은 형태의 단순 L1 거리.
+    """
+    by_theme: dict[str, list[dict]] = {}
+    for row in photo_rows:
+        by_theme.setdefault(row["query"], []).append(row)
+
+    representative_rows = []
+    for rows in by_theme.values():
+        centroid_h = sum(row["mean_h"] for row in rows) / len(rows)
+        centroid_s = sum(row["mean_s"] for row in rows) / len(rows)
+        centroid_v = sum(row["mean_v"] for row in rows) / len(rows)
+
+        def distance_to_centroid(row: dict) -> float:
+            return abs(row["mean_h"] - centroid_h) + abs(row["mean_s"] - centroid_s) + abs(row["mean_v"] - centroid_v)
+
+        rows_by_distance = sorted(rows, key=distance_to_centroid)
+        representative_rows.extend(rows_by_distance[:top_n])
+    return representative_rows
 
 
 def sample_triplets(photo_rows: list[dict], triplets_per_theme: int, rng: random.Random) -> list[dict]:
@@ -132,6 +160,7 @@ if __name__ == "__main__":
     write_csv(photo_rows, DATA_DIR / "photos.csv", PHOTOS_CSV_FIELDS)
     print(f"photos.csv: {len(photo_rows)}장 저장")
 
-    triplets = sample_triplets(photo_rows, TRIPLETS_PER_THEME, random.Random(SEED))
+    representative_rows = filter_representative_photos(photo_rows, REPRESENTATIVE_POOL_SIZE)
+    triplets = sample_triplets(representative_rows, TRIPLETS_PER_THEME, random.Random(SEED))
     write_csv(triplets, DATA_DIR / "pairs.csv", PAIRS_CSV_FIELDS)
-    print(f"pairs.csv: {len(triplets)}행 저장")
+    print(f"pairs.csv: {len(triplets)}행 저장 (테마당 대표 사진 {REPRESENTATIVE_POOL_SIZE}장 중에서 샘플링)")
