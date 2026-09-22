@@ -3,14 +3,14 @@
 > 작성일: 2026-09-14 · 작성자: 진오 · 관련 이슈: #9
 
 ## 📌 목적
-`transition.py`(별도 브랜치, 아직 미병합)의 고정 가중치(w1=w2=w3=1.0)를 실제 취향에 맞게 학습시킬 2단계 `TransitionCostModel`용 라벨 데이터를, 실사용자 트래픽 없이 Unsplash API로 준자동 생성한다. 같은 테마 검색 쿼리 결과끼리는 이미 같은 무드로 묶여 있다는 점을 약한 지도(weak supervision) 신호로 삼아 `{theme, pos, neg}` 트리플렛을 만든다.
+사진 두 장이 서로 어울리는지 판단하는 전이 비용 모델(`Ai/transition_cost_model.py`)을 학습시킬 데이터를, 실사용자 트래픽 없이 Unsplash API로 준자동 생성한다. 같은 테마 검색 쿼리 결과끼리는 이미 같은 무드로 묶여 있다는 점을 약한 지도(weak supervision) 신호로 삼는다.
 
 ## 🧭 파이프라인 상 위치
-전체 아키텍처 순서도 기준 "Unsplash API 기반 전이 비용 학습 데이터 수집 설계" 단계이며, `mlp.py`의 `build_feature_vector`(CLIP 유사도 + 색감 피처)를 재사용해 사진 피처를 뽑고, 그 결과물(`Ai/data/unsplash/*.csv`)은 이후 별도 이슈에서 진행할 `TransitionCostModel` 학습의 입력이 된다.
+전체 아키텍처 순서도 기준 "Unsplash API 기반 전이 비용 학습 데이터 수집 설계" 단계이며, `mlp.py`의 `build_feature_vector`(CLIP 유사도 + 색감 피처)를 재사용해 사진 피처를 뽑고, 그 결과물(`Ai/data/unsplash/*.csv`)은 `Ai/transition_cost_model.py` 학습의 입력이 된다.
 
 - Layer: Layer 2 · 배치(순서 결정) — 학습 데이터 준비 단계
 - 이전 단계: 없음 (Unsplash가 원본 데이터 소스)
-- 다음 단계: `TransitionCostModel` 학습 스크립트 (별도 이슈, 이 모듈 책임 밖)
+- 다음 단계: `Ai/transition_cost_model.py` — 페어와이즈 전이 비용 학습 (`docs/ai/Transition_cost_model.md` 참고)
 
 ## 🔧 입출력 스펙
 
@@ -19,7 +19,8 @@
 | `search_photos` | `theme: str, access_key: str, per_page=30` | `list[dict]` | Unsplash `/search/photos` 원본 결과 |
 | `photo_to_row` | `photo: dict, theme: str` | `dict \| None` | 사진 1장 → 11차원 피처 행. 다운로드/피처 추출 실패 시 `None`(해당 사진만 건너뜀) |
 | `collect_all_photos` | `themes: list[str], access_key: str, per_page: int` | `list[dict]` | 테마 전체를 검색·피처화한 행 리스트 (`None`은 제외됨) |
-| `sample_triplets` | `photo_rows: list[dict], triplets_per_theme: int, rng: random.Random` | `list[dict]` | `{theme, pos, neg}` 트리플렛. 테마별 사진 수가 부족하면 `ValueError` |
+| `filter_representative_photos` | `photo_rows: list[dict], top_n: int` | `list[dict]` | 테마별 색감 centroid(hue/sat/value 평균)와 가까운 top_n장만 남김 |
+| `sample_triplets` | `photo_rows: list[dict], triplets_per_theme: int, rng: random.Random` | `list[dict]` | `{theme, pos, neg}` 트리플렛. 테마별 사진 수가 부족하면 `ValueError` (현재는 `Ai/transition_cost_model.py` 학습에 쓰이지 않음 — `docs/ai/Transition_cost_model.md` 참고) |
 | `write_csv` | `rows: list[dict], path: Path, fieldnames: list[str]` | `None` | 딕셔너리 행 리스트를 CSV로 저장 (디렉터리 자동 생성) |
 
 ## 🧠 설계 결정과 이유
@@ -34,8 +35,12 @@
   - 이유: 사용자가 "테마 하나에 대해 pos(그 테마 사진)/neg(다른 테마 사진)로 구성해야 논리가 맞다"고 명시적으로 요청 — 기존 라벨링 스키마 철학과 일관성을 맞춤
 - 결정: 원본 이미지는 로컬에 저장하지 않고, 메모리에서 피처만 뽑고 버림 — CSV에는 피처값과 `unsplash_url`(추적용)만 저장
   - 이유: 사용자가 "이미지로 하면 용량이 너무 많이 든다"고 지적 — 사진 자체보다 피처값만 있으면 학습에 충분하고, URL만 남겨도 출처 추적은 가능
-- 결정: 테마 3개(`minimalist aesthetic photography`, `vintage retro film photography`, `moody urban night photography`), 테마당 사진 30장, 테마당 트리플렛 15개(총 45행)
+- 결정: 테마 3개, 테마당 사진 30장, 테마당 트리플렛 15개(총 45행)
   - 이유: 파일럿 규모로 API 요청(테마당 1회, 총 3회)이 무료 티어(시간당 50회) 한도에 여유 있게 들어오면서도, `mlp.py`의 12쌍보다 큰 규모로 학습 데이터 다양성을 확보(대화 중 확정)
+- 결정(변경, 2026-09-22): 테마를 `minimalist aesthetic photography`/`vintage retro film photography`/`moody urban night photography`에서 `black and white monochrome photography`/`vibrant colorful photography`/`warm golden hour sunset photography`로 교체
+  - 이유: 원래 테마 조합은 색감(hue/saturation)이 서로 꽤 겹쳐서(모두 무드감 있는/어두운 톤 계열) 같은 테마=pos/다른 테마=neg 라벨의 색감 대비가 약했음. 무채색/고채도/따뜻한 색조처럼 색감 축이 뚜렷하게 갈리는 조합으로 바꿈 — 실제로 교체 후 `mean_s`가 0.02(흑백)~0.68(컬러풀)로 크게 벌어짐을 확인(`docs/ai/Transition_cost_model.md` 실측 결과 참고)
+- 결정: `filter_representative_photos`로 테마당 30장 중 색감 centroid와 가까운 15장만 트리플렛 후보로 남김
+  - 이유: 검색 쿼리(테마)가 같아도 실제 색감은 이질적인 사진이 섞일 수 있어, 테마 안에서도 대표성 낮은 사진을 미리 걸러 라벨 신호를 뚜렷하게 하려 함. `top_n`을 `TRIPLETS_PER_THEME`(15)과 같게 둬서 이후 `sample_triplets`의 pos 후보 풀이 정확히 이 대표 사진들이 되게 함. (실측으로는 이 필터링 자체보다 테마 조합 교체가 더 크게 기여함 — 아래 참고)
 - 결정: `sample_triplets`는 pos를 해당 테마에서 중복 없이(`rng.sample`) 뽑고, neg는 다른 테마 전체 풀에서 무작위(`rng.choice`, 중복 허용)로 뽑음
   - 이유: pos는 정확히 `triplets_per_theme`개가 필요해 비복원추출이 자연스럽고, neg는 다른 테마 사진이 많아 복원추출로도 다양성이 충분함
 - 결정: API 키는 `.env`의 `UNSPLASH_ACCESS_KEY`(Access Key만, `python-dotenv`로 로드)
@@ -71,12 +76,12 @@ write_csv(triplets, DATA_DIR / "pairs.csv", PAIRS_CSV_FIELDS)
 ```bash
 python Ai/collect_unsplash_data.py
 # 출력 예: photos.csv: 90장 저장
-#          pairs.csv: 45행 저장
+#          pairs.csv: 45행 저장 (테마당 대표 사진 15장 중에서 샘플링)
 ```
 
 ## 🔗 참고
 
 - Notion "Unsplash API 기반 전이 비용 학습 데이터 수집 설계" — https://app.notion.com/p/3d0d1ebe485381fc8a38c149a77e7e8c
 - `docs/ai/Mlp_scoring.md` — `build_feature_vector`(11d) 세부 설계, `{theme, pos, neg}` 스키마 철학의 원형
-- `docs/ai/Transition.md` (별도 브랜치, 아직 미병합) — 이 데이터로 학습할 `TransitionCostModel`이 대체할 1단계 고정 가중치 설계
-- 관련 이슈: #9
+- `docs/ai/Transition_cost_model.md` — 이 `photos.csv`로 학습하는 페어와이즈 전이 비용 모델(`TransitionCostModel`)
+- 관련 이슈: #9, #13

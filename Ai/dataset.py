@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import csv
+import random
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +55,54 @@ def build_pair_features(
     feats_neg = [photo_features[pair["neg"]] for pair in pairs]
 
     return torch.from_numpy(np.stack(feats_pos)), torch.from_numpy(np.stack(feats_neg))
+
+
+def load_photo_pool(path: str | Path = DEFAULT_PHOTOS_PATH) -> tuple[dict[str, np.ndarray], dict[str, list[str]]]:
+    """photos.csv -> (photo_id -> 11차원 피처, 테마 -> 그 테마 photo_id 리스트).
+
+    transition_cost_model.py의 페어와이즈 샘플링(같은 테마 2장/다른 테마 2장)에 필요한
+    테마별 그룹 정보까지 한 번에 읽어둔다.
+    """
+    features: dict[str, np.ndarray] = {}
+    by_theme: dict[str, list[str]] = {}
+    with open(path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            features[row["photo_id"]] = np.array(
+                [float(row[field]) for field in FEATURE_FIELDS], dtype=np.float32
+            )
+            by_theme.setdefault(row["query"], []).append(row["photo_id"])
+    return features, by_theme
+
+
+def sample_theme_pair_features(
+    features: dict[str, np.ndarray],
+    by_theme: dict[str, list[str]],
+    n_pairs: int,
+    rng: random.Random,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """같은 테마 2장(pos_pair)/다른 테마 2장(neg_pair)을 n_pairs개씩 무작위 샘플링.
+
+    pos_pair는 같은 테마라 어울려야(낮은 비용), neg_pair는 다른 테마라 안 어울려야(높은 비용)
+    한다 — transition_cost_model.train()에 바로 넣을 수 있는 4개 텐서로 반환.
+    """
+    themes = list(by_theme.keys())
+    pos_a, pos_b, neg_a, neg_b = [], [], [], []
+    for _ in range(n_pairs):
+        theme = rng.choice(themes)
+        a_id, b_id = rng.sample(by_theme[theme], 2)
+        pos_a.append(features[a_id])
+        pos_b.append(features[b_id])
+
+        theme_x, theme_y = rng.sample(themes, 2)
+        neg_a.append(features[rng.choice(by_theme[theme_x])])
+        neg_b.append(features[rng.choice(by_theme[theme_y])])
+
+    return (
+        torch.from_numpy(np.stack(pos_a)),
+        torch.from_numpy(np.stack(pos_b)),
+        torch.from_numpy(np.stack(neg_a)),
+        torch.from_numpy(np.stack(neg_b)),
+    )
 
 
 if __name__ == "__main__":

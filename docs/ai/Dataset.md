@@ -19,6 +19,8 @@
 | `load_label_pairs` | `path` (기본값 `Ai/data/unsplash/pairs.csv`) | `list[dict]` | `{theme, pos, neg}` 트리플렛을 그대로 반환 (`pos`/`neg`는 `photo_id`) |
 | `load_photo_features` | `path` (기본값 `Ai/data/unsplash/photos.csv`) | `dict[str, np.ndarray]` | `photo_id -> 11차원 피처 벡터` 딕셔너리 |
 | `build_pair_features` | `pairs: list[dict], photo_features: dict \| None` | `(feats_pos, feats_neg)` (각 `torch.Tensor`, shape `(N, 11)`) | 트리플렛의 `pos`/`neg` id로 `photo_features`를 조회해 배치로 묶음 |
+| `load_photo_pool` | `path`(기본값 `photos.csv`) | `(photo_id -> 11d 피처, 테마 -> photo_id 리스트)` | `transition_cost_model.py`의 페어와이즈 샘플링용 — 테마별 그룹 정보까지 한 번에 로딩 |
+| `sample_theme_pair_features` | `features, by_theme, n_pairs, rng` | `(feat_pos_a, feat_pos_b, feat_neg_a, feat_neg_b)` (각 `(n_pairs, 11)`) | 같은 테마 2장(pos_pair)/다른 테마 2장(neg_pair)을 무작위 샘플링 |
 
 ## 🧠 설계 결정과 이유
 
@@ -46,6 +48,7 @@ feats_pos, feats_neg = build_pair_features(pairs)  # photos.csv에서 조회 -> 
 - [x] ~~같은 사진이 여러 쌍에 등장해도 그때마다 CLIP 임베딩을 다시 계산함~~ — Unsplash 데이터 전환으로 해소(피처를 한 번만 계산해 CSV에 저장, 이후로는 조회만)
 - [ ] 라벨 파일 하나(`Ai/data/unsplash/pairs.csv`)만 지원 — 여러 라벨 파일을 합치거나 증분 라벨을 병합하는 기능은 없음
 - [x] 학습 스크립트는 `Ai/train_mlp.py`, 평가 스크립트는 `Ai/evaluate_mlp.py`에 구현됨 — 이 모듈은 그 입력 텐서를 만드는 데까지만 책임지는 역할 분리 유지
+- **주의(2026-09-22)**: `load_label_pairs`/`build_pair_features`(트리플렛 기반)로 `ScoringMLP`를 재학습시키는 실험은 구조적으로 잘못된 전제였음이 확인됨 — 자세한 이유는 `docs/ai/Mlp_scoring.md`, `docs/ai/Transition_cost_model.md` 참고. `load_photo_pool`/`sample_theme_pair_features`(페어와이즈)만 계속 사용 권장
 
 ## 🧪 사용 예시
 
