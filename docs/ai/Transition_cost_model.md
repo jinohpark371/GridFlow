@@ -36,9 +36,9 @@ Unsplash 데이터 수집(`collect_unsplash_data.py`)의 `photos.csv`를 입력�
 - 결정: 학습 데이터를 `pairs.csv`({theme, pos, neg} 트리플렛)가 아니라 `photos.csv`에서 직접 샘플링(`sample_theme_pair_features`)
   - 이유: 트리플렛 구조는 "사진 한 장 vs 테마"를 비교하던 옛 스키마의 흔적이라 페어와이즈 학습엔 안 맞음. `photos.csv`(사진별 테마 라벨)만 있으면 "같은 테마 2장"/"다른 테마 2장"을 그때그때 뽑을 수 있어 더 유연함 — `pairs.csv`는 더 이상 이 학습에 쓰이지 않음(트리플렛 스키마 자체가 필요 없어짐)
 - 결정: train 60쌍/val 15쌍을 매번 새로 무작위 샘플링(고정 분할 파일 없음), `SEED=42`로 재현성만 확보
-  - 이유: `photos.csv`(테마당 대표 사진 15장, 총 45장)에서 조합 가능한 같은/다른 테마 쌍이 매우 많아(같은 테마 쌍만 해도 테마당 `15*14/2=105`개) 굳이 고정 파일로 나눌 필요 없이 그때그때 샘플링. 시드만 고정해 실행마다 같은 결과가 나오게 함
+  - 이유: `photos.csv`(테마당 30장, 총 90장 — `filter_representative_photos`로 거른 15장은 `pairs.csv` 트리플렛에만 쓰이고 `photos.csv` 자체는 전체를 담음)에서 조합 가능한 같은/다른 테마 쌍이 매우 많아(같은 테마 쌍만 해도 테마당 `30*29/2=435`개) 굳이 고정 파일로 나눌 필요 없이 그때그때 샘플링. 시드만 고정해 실행마다 같은 결과가 나오게 함
 - 결정: `save_checkpoint`/`load_checkpoint`는 `evaluate_transition_cost_model.py`가 val 정확도까지 확인한 모델(train 60쌍만 학습, val 15쌍은 검증용으로 남김)을 그대로 저장 — 저장 전 val을 합쳐 재학습하는 별도 단계는 두지 않음
-  - 이유: 지금 목표는 "페어와이즈 구조가 실제로 통하는지" 검증이라, val을 버리지 않고 쓰는 최적화보다 검증된 모델을 그대로 남기는 쪽이 단순하고, 데이터도 45장뿐이라 그 차이가 크지 않음. `torch.load`는 `weights_only=True`로 호출 — 신뢰 못 하는 체크포인트를 불러올 때 임의 코드 실행을 막는 최신 권장 설정
+  - 이유: 지금 목표는 "페어와이즈 구조가 실제로 통하는지" 검증이라, val을 버리지 않고 쓰는 최적화보다 검증된 모델을 그대로 남기는 쪽이 단순함. `torch.load`는 `weights_only=True`로 호출 — 신뢰 못 하는 체크포인트를 불러올 때 임의 코드 실행을 막는 최신 권장 설정
 
 ## ⚙️ 동작 흐름
 
@@ -54,7 +54,7 @@ cost = pair_cost(model, feat_a, feat_b)  # 사진 두 장 -> 비용 점수 (낮�
 
 ## 🧪 실전 테스트 결과 (2026-09-22)
 
-- 데이터: `Ai/data/unsplash/photos.csv`(테마 3개 — 흑백/컬러풀/따뜻한 톤, 테마당 대표 사진 15장, 총 45장)
+- 데이터: `Ai/data/unsplash/photos.csv`(테마 3개 — 흑백/컬러풀/따뜻한 톤, 테마당 30장, 총 90장)
 - train 60쌍 / val 15쌍, 100 epoch: loss 0.2016 → 0.0121로 매끄럽게 수렴
 - **val cost ranking accuracy: 93.33%(14/15)** — `cost(pos_pair) < cost(neg_pair)`가 거의 항상 성립
 - 비용 분포 산점도(`docs/ai/output/transition_cost_distribution.png`)에서 pos_pair는 대부분 음수, neg_pair는 대부분 양수로 뚜렷하게 분리됨(겹치는 건 1쌍)
