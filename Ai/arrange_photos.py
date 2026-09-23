@@ -25,10 +25,15 @@ CostFn = Callable[[np.ndarray, np.ndarray], float]
 
 
 def model_cost_fn(model: TransitionCostModel, fi: np.ndarray, fj: np.ndarray) -> float:
-    """두 사진의 11차원 피처 -> 학습된 TransitionCostModel 기준 전이 비용."""
+    """두 사진의 11차원 피처 -> 학습된 TransitionCostModel 기준 전이 비용.
+
+    추론 전용 호출이라 그래디언트가 필요 없다 — no_grad로 autograd 기록을 끄면
+    순열 탐색 중 반복 호출되는 이 함수의 오버헤드가 줄어든다(값 자체는 동일).
+    """
     feat_a = torch.from_numpy(fi).unsqueeze(0)
     feat_b = torch.from_numpy(fj).unsqueeze(0)
-    return pair_cost(model, feat_a, feat_b).item()
+    with torch.no_grad():
+        return pair_cost(model, feat_a, feat_b).item()
 
 
 def _total_cost(order: list[int], feats: list[np.ndarray], cost_fn: CostFn) -> float:
@@ -59,9 +64,11 @@ def _two_opt(order: list[int], feats: list[np.ndarray], cost_fn: CostFn) -> list
     improved = True
     while improved:
         improved = False
-        # 경로(순환 아님)라 구간 반전이 비용 중립적이지 않음 — 첫 자리(i=0)도 반전 대상에 포함해야 탐색이 안 좁아짐
+        # 경로(순환 아님)라 구간 반전이 비용 중립적이지 않음 — 첫 자리(i=0)도 반전 대상에 포함해야 탐색이 안 좁아짐.
+        # j는 len(order)까지 가야 order[i:j]가 마지막 인덱스를 포함하는 반전(끝쪽 구간 반전)도 시도할 수 있다.
+        # j=i+1은 길이 1 구간이라 반전해도 원본과 같으므로 i+2부터 시작해 그 무의미한 시도를 건너뛴다.
         for i in range(len(order) - 1):
-            for j in range(i + 1, len(order)):
+            for j in range(i + 2, len(order) + 1):
                 new_order = order[:i] + order[i:j][::-1] + order[j:]
                 if _total_cost(new_order, feats, cost_fn) < _total_cost(order, feats, cost_fn):
                     order = new_order
