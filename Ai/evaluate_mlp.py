@@ -1,8 +1,10 @@
 """학습된 ScoringMLP의 validation ranking accuracy 확인 + loss curve/점수 분포 시각화.
 
-흐름: Ai/data/unsplash/pairs.csv -> dataset.load_label_pairs -> split_pairs로 테마별 train/val 고정 분할
-      -> train_mlp.train(train)으로 학습 -> val에 대해 ranking accuracy 측정
+흐름: Ai/data/unsplash/scoring_pairs.csv(테마 하나 고정) -> dataset.load_label_pairs
+      -> split_pairs로 테마별 train/val 고정 분할 -> train_mlp.train(train)으로 학습
+      -> val에 대해 ranking accuracy 측정
       -> loss curve, val 점수 분포를 docs/ai/output/에 PNG로 저장
+      -> 학습된 가중치를 Ai/checkpoints/scoring_mlp.pt로 저장
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import matplotlib.pyplot as plt
 import torch
 
 from dataset import build_pair_features, load_label_pairs
-from mlp import ScoringMLP, inference_scores
+from mlp import CHECKPOINT_PATH, ScoringMLP, inference_scores, save_checkpoint
 from train_mlp import train
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -93,3 +95,6 @@ if __name__ == "__main__":
 
     print(f"저장: {OUTPUT_DIR / 'loss_curve.png'}")
     print(f"저장: {OUTPUT_DIR / 'score_distribution.png'}")
+
+    save_checkpoint(model)
+    print(f"체크포인트 저장: {CHECKPOINT_PATH}")

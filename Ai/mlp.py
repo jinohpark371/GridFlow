@@ -111,6 +111,23 @@ def suggest_removal(
     return keep, remove_candidates
 
 
+CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "scoring_mlp.pt"
+
+
+def save_checkpoint(model: ScoringMLP, path: Path = CHECKPOINT_PATH) -> None:
+    """학습된 모델 가중치를 저장 — 이후 세션/백엔드에서 재학습 없이 불러다 쓰기 위함."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), path)
+
+
+def load_checkpoint(path: Path = CHECKPOINT_PATH) -> ScoringMLP:
+    """저장된 가중치를 불러와 eval 모드(Dropout 끔) ScoringMLP로 복원."""
+    model = ScoringMLP()
+    model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
+    model.eval()
+    return model
+
+
 if __name__ == "__main__":
     import sys
 

@@ -1,7 +1,15 @@
-"""Unsplash pos/neg 트리플렛(pairs.csv) 로딩 + photos.csv에서 피처 조회 (MLP 학습 입력 준비).
+"""ScoringMLP용 고정 테마 트리플렛(scoring_pairs.csv) + TransitionCostModel용 페어와이즈
+데이터(photos.csv) 로딩 (학습 입력 준비).
 
-흐름: Ai/data/unsplash/pairs.csv({theme, pos, neg} 목록) + Ai/data/unsplash/photos.csv
-      (photo_id -> 11차원 피처) -> photo_id로 피처 조회 -> (feats_pos, feats_neg) 텐서 쌍
+흐름(ScoringMLP): Ai/data/unsplash/scoring_pairs.csv({theme, pos, neg}, 테마 하나 고정) +
+      scoring_photos.csv(photo_id -> 11차원 피처) -> photo_id로 피처 조회
+      -> (feats_pos, feats_neg) 텐서 쌍
+흐름(TransitionCostModel): Ai/data/unsplash/photos.csv(사진별 테마 + 피처)
+      -> 같은/다른 테마 페어 샘플링 -> (feat_pos_a, feat_pos_b, feat_neg_a, feat_neg_b)
+
+두 모델이 서로 다른 데이터를 쓰는 이유는 docs/ai/Transition_cost_model.md,
+docs/ai/Mlp_scoring.md 참고 — ScoringMLP는 테마 하나 고정 기준 절대 점수용이라
+회전식 다중 테마 데이터(photos.csv/pairs.csv)를 그대로 쓸 수 없다.
 """
 
 from __future__ import annotations
@@ -13,7 +21,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-DEFAULT_PAIRS_PATH = Path(__file__).resolve().parent / "data" / "unsplash" / "pairs.csv"
+DEFAULT_PAIRS_PATH = Path(__file__).resolve().parent / "data" / "unsplash" / "scoring_pairs.csv"
+DEFAULT_SCORING_PHOTOS_PATH = Path(__file__).resolve().parent / "data" / "unsplash" / "scoring_photos.csv"
 DEFAULT_PHOTOS_PATH = Path(__file__).resolve().parent / "data" / "unsplash" / "photos.csv"
 
 # collect_unsplash_data.py의 FEATURE_FIELDS와 동일한 순서 — photos.csv 컬럼이 이 순서로 저장돼 있음
@@ -24,13 +33,13 @@ FEATURE_FIELDS = [
 
 
 def load_label_pairs(path: str | Path = DEFAULT_PAIRS_PATH) -> list[dict]:
-    """pairs.csv({theme, pos, neg} 트리플렛)를 읽어 딕셔너리 리스트로 반환."""
+    """scoring_pairs.csv({theme, pos, neg} 트리플렛, 테마 하나 고정)를 읽어 딕셔너리 리스트로 반환."""
     with open(path, encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
-def load_photo_features(path: str | Path = DEFAULT_PHOTOS_PATH) -> dict[str, np.ndarray]:
-    """photos.csv를 photo_id -> 11차원 피처 벡터 딕셔너리로 로딩."""
+def load_photo_features(path: str | Path = DEFAULT_SCORING_PHOTOS_PATH) -> dict[str, np.ndarray]:
+    """scoring_photos.csv를 photo_id -> 11차원 피처 벡터 딕셔너리로 로딩."""
     features = {}
     with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
