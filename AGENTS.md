@@ -7,7 +7,7 @@
 ## 프로젝트 구조
 
 - `Ai/` — AI 파이프라인 코드. 세부는 [Ai 파트](#ai-파트), [`Ai/CLAUDE.md`](Ai/CLAUDE.md) 참고
-- `Backend/` — [미정] 아직 비어있음. [Backend 파트](#backend-파트) 참고
+- `Backend/` — FastAPI 서버. 세부는 [Backend 파트](#backend-파트), [`Backend/CLAUDE.md`](Backend/CLAUDE.md) 참고
 - `Frontend/` — [미정] 아직 비어있음. [Frontend 파트](#frontend-파트) 참고
 - `samples/` — 개발·테스트용 샘플 사진 (`photo1.JPG`, `photo2.JPG`, ... 순번 컨벤션)
 - `docs/` — 파트별 설계 문서. 현재는 `docs/ai/`만 있음 (`docs/frontend/`, `docs/backend/` 등은 해당 파트 착수 시 정함)
@@ -38,7 +38,8 @@
 
 ## Backend 파트
 
-[미정] 아직 코드가 없다. 프레임워크, API 구조, DB 등 전부 미결정 상태 — 실제로 착수할 때 사용자와 먼저 정하고, 정해지면 `Backend/CLAUDE.md`를 이 절과 함께 추가한다.
+- 구조·개발 환경·테스트 명령어 등 세부 지침은 [`Backend/CLAUDE.md`](Backend/CLAUDE.md)에 있다
+- 요약: FastAPI, `Ai/`를 `sys.path`로 불러와 bare import로 재사용, 별도 가상환경 없음, 사진은 저장하지 않음, 로컬 실행까지만(배포는 범위 밖)
 
 ---
 

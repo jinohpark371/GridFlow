@@ -13,3 +13,7 @@ from pathlib import Path
 AI_DIR = Path(__file__).resolve().parent.parent / "Ai"
 if str(AI_DIR) not in sys.path:
     sys.path.insert(0, str(AI_DIR))
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent / "Backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
