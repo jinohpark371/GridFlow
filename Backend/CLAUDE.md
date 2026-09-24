@@ -17,7 +17,18 @@
 
 - `tests/backend/test_main.py`에 FastAPI `TestClient`로 작성. `python -m pytest`로 `tests/ai/`와 함께 실행됨(같은 `pytest.ini` 기준)
 
+## Docker
+
+- 저장소 루트의 `Dockerfile`로 빌드(빌드 컨텍스트 = 루트) — `Ai/`와 `Backend/`를 함께 담아야 `sys.path` 방식 import가 동작함
+- CLIP 가중치(`openai/clip-vit-base-patch32`)는 빌드 시점에 이미지 안에 구워 넣는다 — 런타임에 네트워크 없이 바로 뜨게 하기 위함(이미지가 커지는 대신 배포 환경마다 다시 받을 필요가 없음)
+- 체크포인트(`Ai/checkpoints/*.pt`)는 저장소에 커밋돼 있어 별도 처리 없이 `COPY`로 같이 들어감
+- 빌드/실행:
+  ```bash
+  docker build -t gridflow-backend .
+  docker run -p 8000:8000 gridflow-backend
+  ```
+
 ## 범위
 
-- 이번 단계는 로컬 실행까지만 — Docker/클라우드 배포는 범위 밖(필요해지면 이 문서에 절 추가)
+- 클라우드 배포(호스팅 위치, CI/CD 자동화 등)는 아직 범위 밖 — 별도로 브레인스토밍 후 진행
 - 사진은 저장하지 않는다 — 업로드된 사진은 메모리에서 피처만 뽑고 버린다(S3 등 오브젝트 스토리지 없음)
