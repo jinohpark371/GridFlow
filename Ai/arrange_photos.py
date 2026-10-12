@@ -80,13 +80,23 @@ def order_items(feats: list[np.ndarray], cost_fn: CostFn, brute_force_max: int =
     """전이 비용 총합이 최소가 되는 순서(원본 인덱스 리스트)를 반환.
 
     사진 수가 적으면(<= brute_force_max) 완전탐색, 많으면 greedy(최근접 이웃) + 2-opt.
+    사진 쌍별 비용은 처음에 표로 한 번만 계산한다 — 내부 탐색 함수는 cost_fn(feats[a], feats[b])
+    형태로만 비용을 묻기 때문에, feats 자리에 번호 목록을, cost_fn 자리에 표 조회를 넘기면
+    내부 함수를 고치지 않고도 같은 쌍을 반복 계산하지 않게 된다(8장 완전탐색 282,240회 -> 56회).
     """
     n = len(feats)
     if n <= 1:
         return list(range(n))
+
+    table = [[cost_fn(feats[i], feats[j]) if i != j else 0.0 for j in range(n)] for i in range(n)]
+
+    def lookup(i: int, j: int) -> float:
+        return table[i][j]
+
+    ids = list(range(n))
     if n <= brute_force_max:
-        return _brute_force_order(n, feats, cost_fn)
-    return _two_opt(_nearest_neighbor_order(n, feats, cost_fn), feats, cost_fn)
+        return _brute_force_order(n, ids, lookup)
+    return _two_opt(_nearest_neighbor_order(n, ids, lookup), ids, lookup)
 
 
 def select_representative(group: list[str], fitness_scores: dict[str, float]) -> str:

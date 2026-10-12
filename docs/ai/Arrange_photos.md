@@ -28,6 +28,8 @@ Layer 2 · 배치(순서 결정). `Ai/transition_cost_model.py`(비용 함수)�
   - 이유: 원래 함수는 hue/밝기/채도 3개 축의 고정 가중치 합이었는데, 이제 11차원 전체를 보고 비선형으로 판단하는 학습된 `TransitionCostModel.pair_cost`가 있어(val cost ranking accuracy 93.33%) 그걸 그대로 사용. `pair_cost`가 배치 텐서를 받는 것과 달리 `order_items`는 `(np.ndarray, np.ndarray) -> float` 형태의 콜러블을 기대해서, 사진 한 쌍씩 `unsqueeze(0)`으로 배치 크기 1을 만들어 감싸는 `model_cost_fn`을 새로 추가
 - 결정: 그룹 경계의 전이 비용은 여전히 계산하지 않음(그룹 간은 대표 사진 비교로만 순서 결정)
   - 이유: 그룹은 화면에서 별도 게시물/섹션으로 분리돼 실제 사진이 맞닿지 않는다는 결정(예전 `docs/ai/Transition.md`의 결정)을 그대로 승계 — 이 전제 자체는 모델을 바꿨다고 달라지지 않음
+- 결정: `order_items`가 시작할 때 사진 쌍별 비용 표(n×n)를 한 번만 만들고, 내부 탐색 함수에는 사진 대신 번호 목록과 표 조회 함수를 넘김 (이슈 #22)
+  - 이유: 완전탐색은 순서 후보마다 인접 쌍 비용을 다시 계산해서, 8장 기준 고유한 쌍은 56개뿐인데 비용 함수(=TransitionCostModel 실행)를 282,240번 호출했다. 표를 쓰면 호출이 n(n−1)번으로 줄어 로컬 실측(무작위 피처) 8장 25.47초 → 0.09초, 20장 1.50초 → 0.04초. 내부 함수(`_brute_force_order`, `_two_opt` 등)는 `cost_fn(feats[a], feats[b])` 형태로만 비용을 묻기 때문에 시그니처를 바꾸지 않고 적용할 수 있었다. 대칭은 가정하지 않고 양방향을 다 계산한다(20장도 380번)
 
 ## ⚙️ 동작 흐름
 
@@ -42,7 +44,7 @@ order, adjacency = arrange_photos(groups, color_feats, fitness_scores, model)
 ## ⚠️ 알려진 제약 / TODO
 
 - [ ] 그룹핑 자체(촬영 장소/세션 단위로 나누는 로직)는 여전히 이 모듈 책임 밖 — 클라이언트가 미리 나눠서 보내는 것을 가정
-- [ ] `brute_force_max=8` 초과 시 greedy+2-opt로 넘어가는데, 사진이 아주 많은 그룹(수십 장)에서의 속도는 실측하지 않음
+- [ ] 비용 표 이후 남은 병목은 장당 피처 추출(CLIP, 512px 기준 장당 약 0.5초)과 `async def arrange`의 이벤트 루프 블로킹 — #18에 남김
 
 ## 🧪 사용 예시
 
