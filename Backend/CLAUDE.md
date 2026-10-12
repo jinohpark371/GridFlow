@@ -13,6 +13,12 @@
 - 실행: `uvicorn main:app --reload --app-dir Backend`
 - 체크포인트(`Ai/checkpoints/scoring_mlp.pt`, `Ai/checkpoints/transition_cost_model.pt`)가 없으면 서버 시작이 실패한다 — 먼저 `Ai/evaluate_mlp.py`, `Ai/evaluate_transition_cost_model.py`를 실행해 체크포인트를 만들어야 한다
 
+## 요청 제한 · CORS
+
+- `MAX_PHOTOS = 20`: 요청 하나의 사진이 이보다 많으면 400. `Frontend/lib/limits.ts`의 같은 이름 상수와 값을 맞춘다(프론트 테스트가 이 파일을 읽어 비교함)
+- `MAX_PHOTO_BYTES = 5MB`: 넘는 사진은 그 사진만 `skipped`(이유: 용량 초과)
+- CORS 허용 주소는 환경변수 `ALLOWED_ORIGINS`(쉼표 구분). 기본값은 Next 개발 서버 `http://localhost:3000`. 운영에서는 `docker run -e ALLOWED_ORIGINS=https://<netlify 주소>`
+
 ## 테스트
 
 - `tests/backend/test_main.py`에 FastAPI `TestClient`로 작성. `python -m pytest`로 `tests/ai/`와 함께 실행됨(같은 `pytest.ini` 기준)
