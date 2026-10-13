@@ -1,0 +1,70 @@
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --text: #111111;
+  --text-muted: #6b6b6b;
+  --border: #e5e5e5;
+  --accent: #111111;
+  --accent-text: #ffffff;
+  --danger: #d92d20;
+  --radius: 14px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --font: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0b;
+    --surface: #161616;
+    --text: #f2f2f2;
+    --text-muted: #9a9a9a;
+    --border: #262626;
+    --accent: #f2f2f2;
+    --accent-text: #0b0b0b;
+    --danger: #ff6b5e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+body {
+  min-height: 100dvh;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 0 var(--space-4) 96px;
+}
