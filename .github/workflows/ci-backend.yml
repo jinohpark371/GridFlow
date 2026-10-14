@@ -11,7 +11,7 @@ on:
       - "pytest.ini"
       - ".github/workflows/ci-backend.yml"
   push:
-    branches: [develop, main, "feature/**"]
+    branches: [develop, main]
     paths:
       - "Ai/**"
       - "Backend/**"

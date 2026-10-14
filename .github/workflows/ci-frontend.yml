@@ -9,7 +9,7 @@ on:
       - "Backend/main.py"
       - ".github/workflows/ci-frontend.yml"
   push:
-    branches: [develop, main, "feature/**"]
+    branches: [develop, main]
     paths:
       - "Frontend/**"
       - "Ai/collect_unsplash_data.py"
