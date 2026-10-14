@@ -20,6 +20,25 @@ AI 파이프라인(`Ai/`) 설계·검증 단계가 진행 중이며, `Backend/`�
 | 프론트엔드 | ❌ 미착수 | 미정 |
 | 실사용자 피드백 루프 | ❌ 미착수 | 드래그 재정렬 등으로 실 데이터 수집 예정 |
 
+### 🚧 화면 미리보기 (작업 중)
+
+모바일 웹 화면을 만들고 있습니다. 아래는 지금까지 만든 화면 중 두 개입니다.
+
+<table>
+  <tr>
+    <th width="50%">테마 고르기</th>
+    <th width="50%">추천 결과</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/theme-select.png" alt="테마 고르기 화면" width="260"></td>
+    <td align="center"><img src="docs/images/recommend-result.png" alt="추천 결과 화면" width="260"></td>
+  </tr>
+  <tr>
+    <td valign="top">흑백 · 비비드 · 골든아워 중에서 게시물 분위기를 고릅니다.</td>
+    <td valign="top">테마와 잘 안 맞는 사진을 점수와 함께 "빼는 걸 추천해요"로 보여줍니다. 빼는 건 제안일 뿐이고, 최종 결정은 사용자가 합니다.</td>
+  </tr>
+</table>
+
 ## 🧭 아키텍처
 
 전체 파이프라인은 두 계층으로 나뉩니다.
