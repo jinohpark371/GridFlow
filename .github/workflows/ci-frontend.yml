@@ -29,6 +29,8 @@ jobs:
           node-version-file: Frontend/.nvmrc
           cache: npm
           cache-dependency-path: Frontend/package-lock.json
+      # 로컬과 같은 npm으로 맞춤 — npm 10은 npm 11이 만든 lock의 wasm 선택 의존성(@emnapi)을 다르게 읽어 npm ci가 실패한다
+      - run: npm install -g npm@11.6.2
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
