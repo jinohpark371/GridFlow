@@ -1,0 +1,38 @@
+.strip {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: var(--space-2);
+}
+
+.item {
+  position: relative;
+  flex: 0 0 62%;
+  scroll-snap-align: start;
+}
+
+.item img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+
+.index {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  min-width: 26px;
+  height: 26px;
+  padding: 0 var(--space-2);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
