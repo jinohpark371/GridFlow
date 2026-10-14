@@ -1,6 +1,7 @@
 .heading {
-  font-size: 22px;
-  letter-spacing: -0.02em;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+  margin-top: var(--space-2);
 }
 
 .sub {
@@ -11,6 +12,7 @@
 
 .block {
   margin-top: var(--space-6);
+  padding-top: var(--space-4);
 }
 
 .blockTitle {
@@ -30,14 +32,17 @@
   gap: var(--space-1);
   font-size: 12px;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
+/* 빼는 걸 추천하는 사진은 흑백·흐리게 — 순서에 들어간 사진과 한눈에 구분 */
 .removed img {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 8px;
-  opacity: 0.6;
+  border-radius: var(--radius-sm);
+  filter: grayscale(1);
+  opacity: 0.55;
 }
 
 .skipped {
@@ -47,8 +52,9 @@
 }
 
 .empty {
-  padding: 48px 0 var(--space-4);
+  padding: 15dvh 0 var(--space-4);
   display: grid;
   gap: var(--space-4);
   text-align: center;
+  font-weight: 500;
 }

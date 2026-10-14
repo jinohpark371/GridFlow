@@ -1,13 +1,18 @@
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4) 0;
+  gap: var(--space-1);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: var(--space-3) var(--space-2);
+  background: var(--bg);
 }
 
 .back {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -15,6 +20,5 @@
 }
 
 .title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 17px;
 }
