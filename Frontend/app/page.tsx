@@ -1,7 +1,5 @@
+import { GridFlowApp } from "@/components/GridFlowApp";
+
 export default function Page() {
-  return (
-    <main className="app">
-      <h1>GridFlow</h1>
-    </main>
-  );
+  return <GridFlowApp />;
 }
