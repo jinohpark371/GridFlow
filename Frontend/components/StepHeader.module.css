@@ -1,0 +1,20 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+
+.back {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+}

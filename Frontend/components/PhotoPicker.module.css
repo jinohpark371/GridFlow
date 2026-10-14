@@ -1,0 +1,46 @@
+.count {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: var(--space-3);
+}
+
+.notice {
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-1);
+}
+
+.item {
+  position: relative;
+}
+
+.item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  line-height: 1;
+}
