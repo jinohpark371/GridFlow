@@ -7,8 +7,10 @@
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+from mlp import INPUT_DIM
 
 SAMPLES_DIR = Path(__file__).resolve().parents[2] / "samples"
 
@@ -147,3 +149,69 @@ def test_arrange_rejects_duplicate_filenames():
         )
 
     assert response.status_code == 400
+
+
+def test_cors_allows_configured_origin():
+    from main import app
+
+    with TestClient(app) as client:
+        response = client.options(
+            "/arrange",
+            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST"},
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_cors_does_not_allow_unknown_origin():
+    from main import app
+
+    with TestClient(app) as client:
+        response = client.options(
+            "/arrange",
+            headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"},
+        )
+
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_arrange_rejects_more_than_max_photos():
+    from main import MAX_PHOTOS, app
+
+    count = MAX_PHOTOS + 1
+    with TestClient(app) as client:
+        response = client.post(
+            "/arrange",
+            data={"theme": "테마", "group_ids": [0] * count},
+            files=[("photos", (f"{i}.jpg", b"x", "image/jpeg")) for i in range(count)],
+        )
+
+    assert response.status_code == 400
+    assert f"최대 {MAX_PHOTOS}장" in response.json()["detail"]
+
+
+def test_arrange_skips_photo_over_size_limit(monkeypatch):
+    """5MB를 넘는 사진은 그 사진만 skipped로 돌려보내고 나머지는 정상 처리한다.
+    CLIP을 태우지 않도록 피처 추출을 고정 벡터로 바꾼다(그래서 integration 아님)."""
+    import main
+
+    monkeypatch.setattr(main, "build_feature_vector", lambda image, theme: np.zeros(INPUT_DIM, dtype=np.float32))
+    monkeypatch.setattr(main, "THRESHOLD", -1e9)
+    too_big = b"0" * (main.MAX_PHOTO_BYTES + 1)
+
+    with TestClient(main.app) as client:
+        response = client.post(
+            "/arrange",
+            data={"theme": "테마", "group_ids": [0, 0]},
+            files=[
+                ("photos", _sample_file("photo1.JPG")),
+                ("photos", ("big.jpg", too_big, "image/jpeg")),
+            ],
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["photo_id"] for item in body["skipped"]] == ["big.jpg"]
+    assert "용량" in body["skipped"][0]["reason"]
+    assert body["groups"][0]["order"] == ["photo1.JPG"]

@@ -1,0 +1,46 @@
+name: CI (frontend)
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "Frontend/**"
+      - "Ai/collect_unsplash_data.py"
+      - "Backend/main.py"
+      - ".github/workflows/ci-frontend.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "Frontend/**"
+      - "Ai/collect_unsplash_data.py"
+      - "Backend/main.py"
+      - ".github/workflows/ci-frontend.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: Frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      # 로컬과 같은 npm으로 맞춤 — npm 10은 npm 11이 만든 lock의 wasm 선택 의존성(@emnapi)을 다르게 읽어 npm ci가 실패한다
+      - run: npm install -g npm@11.6.2
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: Frontend/playwright-report
+          retention-days: 7

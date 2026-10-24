@@ -1,0 +1,24 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: var(--space-3) var(--space-2);
+  background: var(--bg);
+}
+
+.back {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 20px;
+}
+
+.title {
+  font-size: 17px;
+}

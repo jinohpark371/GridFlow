@@ -42,7 +42,10 @@ allowed-tools: Bash(git status), Bash(git branch *), Bash(git remote *), Bash(gi
      )"` 실행
    - 생성된 이슈 URL을 사용자에게 전달
    - 이슈 번호가 나오면, **브랜치명을 사용자에게 먼저 물어본다** — 기존 브랜치 양식(`<타입>/<한글-설명>/<이슈번호>`, 예: `feature/전이-비용-배치/7`)에 맞춘 이름을 추천하되, 최종 이름은 사용자 확인을 받는다
-   - 확인받은 브랜치명으로 **`develop` 기반**에서 새 브랜치를 생성한다: `git fetch origin develop && git checkout -b <브랜치명> origin/develop`
+   - 확인받은 브랜치명으로 **`develop` 기반**에서 새 브랜치를 생성한다: `git fetch origin develop && git checkout --no-track -b <브랜치명> origin/develop`
+     - `--no-track`을 빼면 새 브랜치가 `origin/develop`을 추적하게 돼, 이후 그냥 `git push`를 하면 `develop`으로 올라갈 위험이 있다
+   - 생성한 브랜치를 **바로 원격에도 올린다**: `git push -u origin <브랜치명>` — 로컬에만 있으면 GitHub에서 브랜치가 보이지 않는다. 브랜치명 확인을 받을 때 "생성 후 원격에 push까지 한다"고 함께 알리고, 그 승인으로 push까지 진행한다
+   - push 후 `git status -sb`로 추적 대상이 `origin/<브랜치명>`인지 확인한다
 
 3. **`gh`가 없거나 미인증이면**
    - `git remote get-url origin`에서 `<owner>/<repo>`를 파싱해 새 이슈 작성 URL을 만들어 전달:

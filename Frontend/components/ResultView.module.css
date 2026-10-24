@@ -1,0 +1,60 @@
+.heading {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+  margin-top: var(--space-2);
+}
+
+.sub {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: var(--space-1) 0 var(--space-4);
+}
+
+.block {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+}
+
+.blockTitle {
+  font-size: 16px;
+}
+
+.removed {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+
+.removed li {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 빼는 걸 추천하는 사진은 흑백·흐리게 — 순서에 들어간 사진과 한눈에 구분 */
+.removed img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.skipped {
+  margin-top: var(--space-4);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.empty {
+  padding: 15dvh 0 var(--space-4);
+  display: grid;
+  gap: var(--space-4);
+  text-align: center;
+  font-weight: 500;
+}
