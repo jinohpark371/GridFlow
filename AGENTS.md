@@ -8,7 +8,7 @@
 
 - `Ai/` — AI 파이프라인 코드. 세부는 [Ai 파트](#ai-파트), [`Ai/CLAUDE.md`](Ai/CLAUDE.md) 참고
 - `Backend/` — FastAPI 서버. 세부는 [Backend 파트](#backend-파트), [`Backend/CLAUDE.md`](Backend/CLAUDE.md) 참고
-- `Frontend/` — [미정] 아직 비어있음. [Frontend 파트](#frontend-파트) 참고
+- `Frontend/` — Next.js 앱. 세부는 [Frontend 파트](#frontend-파트), [`Frontend/CLAUDE.md`](Frontend/CLAUDE.md) 참고
 - `samples/` — 개발·테스트용 샘플 사진 (`photo1.JPG`, `photo2.JPG`, ... 순번 컨벤션)
 - `docs/` — 파트별 설계 문서. 현재는 `docs/ai/`만 있음 (`docs/frontend/`, `docs/backend/` 등은 해당 파트 착수 시 정함)
 
@@ -23,7 +23,6 @@
 - 기존 구조와 패턴을 먼저 따르고, 필요가 명확할 때만 새 패턴을 추가한다
 - 변경 범위는 가능한 한 작게 유지한다 — 코드 변경과 그에 대응하는 문서 변경을 하나의 논리 단위로 묶고, 서로 독립적인 변경은 커밋을 분리한다
 - 하이퍼파라미터, 데이터 포맷, 스키마처럼 여러 선택지가 가능한 결정 지점은 구현 전에 가정을 명시하거나 먼저 물어본다 (`CLAUDE.md` 참고) — 이슈 체크리스트에 있는 항목이라도 예외 아니다
-- 아직 비어있는 파트(Frontend/Backend)에 새 구조를 임의로 만들지 않는다 — 실제로 필요해질 때 정한다
 
 ## 작업 진행 방식
 
@@ -60,7 +59,8 @@
 
 ## Frontend 파트
 
-[미정] 아직 코드가 없다. 프레임워크, 디렉터리 구조, 스타일 가이드 등 전부 미결정 상태 — 실제로 착수할 때 사용자와 먼저 정하고, 정해지면 `Frontend/CLAUDE.md`를 이 절과 함께 추가한다.
+- 구조·개발 환경·테스트 명령어 등 세부 지침은 [`Frontend/CLAUDE.md`](Frontend/CLAUDE.md)에 있다
+- 요약: Next.js(App Router, TypeScript) 정적 내보내기, CSS Modules, 한 페이지 안에서 단계 전환, 로그인·저장 없음, Vitest + Playwright
 
 ## Backend 파트
 

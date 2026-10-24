@@ -1,0 +1,98 @@
+.root {
+  padding-top: var(--space-2);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) 0 var(--space-4);
+}
+
+.title {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.help {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* 인스타그램 프로필처럼 화면 끝까지 붙인 3열, 2px 간격 */
+.grid {
+  list-style: none;
+  padding: 0;
+  margin: 0 calc(var(--space-4) * -1);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+
+.tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.carouselMark {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 13px;
+  height: 13px;
+  border: 2px solid #fff;
+  border-radius: 3px;
+  box-shadow: 3px -3px 0 -1px rgba(255, 255, 255, 0.9);
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.4));
+}
+
+.empty {
+  margin-top: 18dvh;
+  text-align: center;
+  display: grid;
+  gap: var(--space-2);
+  font-weight: 500;
+}
+
+.emptyHint {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.fab {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  min-height: 52px;
+  padding: 14px 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ink-text);
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.fab:active:not(:disabled) {
+  transform: translateX(-50%) scale(0.98);
+}

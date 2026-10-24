@@ -1,0 +1,58 @@
+/* 밀착 인화지의 한 줄: 사진 아래 왼쪽에 프레임 번호. 순서가 이 앱의 결과물이라 번호가 곧 정보다 */
+.strip {
+  list-style: none;
+  padding: 0 0 var(--space-2);
+  margin: 0 calc(var(--space-4) * -1);
+  padding-inline: var(--space-4);
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--space-4);
+  scrollbar-width: none;
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
+.item {
+  flex: 0 0 64%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scroll-snap-align: start;
+  animation: develop 420ms var(--ease-out) both;
+}
+
+/* 1 → 2 → 3 순서로 하나씩 나타나 "이 순서예요"를 보여주는 단 하나의 연출 */
+.item:nth-child(2) { animation-delay: 70ms; }
+.item:nth-child(3) { animation-delay: 140ms; }
+.item:nth-child(4) { animation-delay: 210ms; }
+.item:nth-child(5) { animation-delay: 280ms; }
+.item:nth-child(n + 6) { animation-delay: 350ms; }
+
+.item img {
+  order: 1;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.index {
+  order: 2;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  padding-left: 2px;
+}
+
+@keyframes develop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

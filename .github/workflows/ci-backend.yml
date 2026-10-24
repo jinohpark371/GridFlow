@@ -1,0 +1,37 @@
+name: CI (backend)
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "Ai/**"
+      - "Backend/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "pytest.ini"
+      - ".github/workflows/ci-backend.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "Ai/**"
+      - "Backend/**"
+      - "tests/**"
+      - "requirements.txt"
+      - "pytest.ini"
+      - ".github/workflows/ci-backend.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: OpenCV 시스템 라이브러리
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+      - name: 의존성 설치 (torch +cpu는 PyTorch 인덱스에만 있음)
+        run: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+      - name: pytest (integration 제외 — pytest.ini addopts)
+        run: python -m pytest -v

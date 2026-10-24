@@ -7,6 +7,7 @@ Ai/는 패키지가 아닌 bare import 스크립트 스타일이라, sys.path에
 bare import로 재사용한다(tests/conftest.py와 동일한 패턴).
 """
 
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,6 +21,7 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from fastapi import File, Form, HTTPException, UploadFile  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from PIL import Image  # noqa: E402
 from mlp import build_feature_vector, inference_scores, suggest_removal  # noqa: E402
 from mlp import load_checkpoint as load_scoring_checkpoint  # noqa: E402
@@ -41,6 +43,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# 프론트(Netlify)는 백엔드(CloudFront)와 주소가 달라 브라우저가 CORS 허락을 확인한다.
+# 허용 주소는 코드에 박지 않고 환경변수로 받는다 — 주소가 바뀌어도 재빌드 없이 docker run -e로 바꿀 수 있게
+# 기본값 localhost:3000은 개발용이고, 운영에서는 Netlify 주소로 덮어쓴다(빠뜨리면 프론트가 막혀 바로 드러남)
+ALLOWED_ORIGINS = [
+    origin.strip() for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -49,6 +64,8 @@ def health() -> dict[str, str]:
 
 THRESHOLD = 0.35
 BRUTE_FORCE_MAX = 8
+MAX_PHOTOS = 20  # 인스타그램 캐러셀 최대치. Frontend/lib/limits.ts와 같은 값
+MAX_PHOTO_BYTES = 5 * 1024 * 1024  # 프론트는 512px로 줄여 보내므로 정상 사용에선 안 걸림 — 원본 직접 전송 방어용
 
 
 @app.post("/arrange")
@@ -59,6 +76,8 @@ async def arrange(
 ):
     if not photos:
         raise HTTPException(400, "photos가 비어있음")
+    if len(photos) > MAX_PHOTOS:
+        raise HTTPException(400, f"사진은 최대 {MAX_PHOTOS}장까지 보낼 수 있음")
     if len(photos) != len(group_ids):
         raise HTTPException(400, "photos와 group_ids 길이가 다름")
 
@@ -73,6 +92,11 @@ async def arrange(
     for photo, group_id in zip(photos, group_ids):
         try:
             content = await photo.read()
+            if len(content) > MAX_PHOTO_BYTES:
+                skipped.append(
+                    {"photo_id": photo.filename, "reason": f"용량 초과({MAX_PHOTO_BYTES // (1024 * 1024)}MB 제한)"}
+                )
+                continue
             image = Image.open(BytesIO(content)).convert("RGB")
             color_feats[photo.filename] = build_feature_vector(image, theme)
             photo_id_to_group[photo.filename] = group_id

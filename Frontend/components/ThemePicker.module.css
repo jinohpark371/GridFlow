@@ -1,0 +1,51 @@
+.lead {
+  color: var(--text-muted);
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* 강조색이 허락된 곳: 테마의 색 견본이 카드의 주인공 */
+.card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+}
+
+.swatch {
+  display: flex;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.swatch span {
+  width: 24px;
+  height: 56px;
+}
+
+.text {
+  display: grid;
+  gap: 2px;
+}
+
+.label {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.description {
+  color: var(--text-muted);
+  font-size: 14px;
+}

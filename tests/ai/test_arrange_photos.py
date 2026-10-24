@@ -9,11 +9,13 @@ import functools
 
 import numpy as np
 import pytest
+import torch
 from mlp import INPUT_DIM
 from transition_cost_model import TransitionCostModel
 
 from arrange_photos import (
     _brute_force_order,
+    _nearest_neighbor_order,
     _total_cost,
     _two_opt,
     arrange_photos,
@@ -150,3 +152,38 @@ def test_arrange_photos_handles_group_of_size_one():
 
     assert order == [["solo"]]
     assert adjacency == [[]]
+
+
+def test_order_items_calls_cost_fn_once_per_ordered_pair():
+    """사진 쌍마다 비용을 한 번씩만 계산해야 한다 — 같은 쌍을 순서 후보마다 다시
+    계산하면 8장 완전탐색에서 28만 번 넘게 호출돼 수십 초가 걸린다(이슈 #22 실측)."""
+    calls = 0
+
+    def cost_fn(a: np.ndarray, b: np.ndarray) -> float:
+        nonlocal calls
+        calls += 1
+        return abs(float(a[0]) - float(b[0]))
+
+    for n in [5, 10]:  # 5장 = 완전탐색, 10장 = greedy+2-opt
+        calls = 0
+        feats = [np.array([float(v)] + [0.0] * (INPUT_DIM - 1), dtype=np.float32) for v in range(n)]
+
+        order_items(feats, cost_fn, brute_force_max=8)
+
+        assert calls == n * (n - 1)
+
+
+def test_order_items_matches_direct_search_results():
+    """비용 표를 쓰도록 바꿔도 내부 탐색 함수를 원래 방식(사진 피처 + 비용 함수)으로
+    직접 부른 결과와 같은 순서가 나와야 한다. 지금도 통과해야 하는 회귀 방지 테스트."""
+    torch.manual_seed(0)
+    model = TransitionCostModel()
+    model.eval()
+    cost_fn = functools.partial(model_cost_fn, model)
+
+    feats5 = [_feat(i) for i in range(5)]
+    assert order_items(feats5, cost_fn, brute_force_max=8) == _brute_force_order(5, feats5, cost_fn)
+
+    feats10 = [_feat(i) for i in range(10)]
+    expected10 = _two_opt(_nearest_neighbor_order(10, feats10, cost_fn), feats10, cost_fn)
+    assert order_items(feats10, cost_fn, brute_force_max=8) == expected10
