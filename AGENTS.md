@@ -83,8 +83,8 @@
 - `.github/pull_request_template.md` 양식을 **반드시** 그대로 따른다 (섹션 생략·재구성 금지)
 - 절차는 `/pr` 커맨드(`.claude/commands/pr.md`) 참고. 제목/본문을 먼저 보여주고 승인받은 뒤 생성·push한다
 - `기타 참고사항`에는 실제로 실행해서 확인한 것만 적는다 — 실행하지 않았으면 "미실행"이라고 명시
-- PR 머지는 리뷰·CI가 통과한 뒤에도 **사용자 승인을 받고** 실행한다
-- 작업 브랜치(`feature/*`, `hotfix/*`)는 `develop`(또는 `main`)에 머지한 뒤 원격과 로컬 모두에서 삭제한다(`git push origin --delete <브랜치>`, `git branch -d <브랜치>`). `develop` → `main` 릴리스 PR에서는 `develop`을 지우지 않는다
+- PR 머지는 **사용자가 GitHub에서 직접 승인·머지**한다. 에이전트는 PR을 머지하지 않는다
+- 머지가 확인되면 작업 브랜치(`feature/*`, `hotfix/*`)를 원격과 로컬 모두에서 삭제한다(`git push origin --delete <브랜치>`, `git branch -d <브랜치>`). `develop` → `main` 릴리스 PR에서는 `develop`을 지우지 않는다
 
 ## Issue 작성 규칙
 
