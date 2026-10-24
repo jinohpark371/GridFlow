@@ -17,6 +17,7 @@
 - `git status`, `git branch --show-current`로 현재 상태 확인 — 브랜치 전략은 git-flow: `main` / `develop` / `feature/*`(→ `develop`) / `hotfix/*`, `release/*`(→ `main`)
 - 관련 작업이 이미 이슈로 있는지 `gh issue list --search "<키워드>"`로 가볍게 확인 (중복 방지)
 - PR을 만들 계획이면 base 브랜치를 넘겨짚지 않는다 — `feature/*`는 보통 `develop`을 향하고, `hotfix/*`/`release/*`만 `main`을 향한다. 애매하면 확인한다
+- 이슈용 작업 브랜치는 `develop` 기반으로 만들고(`<타입>/<한글-설명>/<이슈번호>`), 만들자마자 원격에도 올린다(`git push -u origin <브랜치명>`). 로컬에만 두지 않는다 — 절차는 `/issue` 커맨드 참고
 
 ## 작업 원칙
 
@@ -82,6 +83,8 @@
 - `.github/pull_request_template.md` 양식을 **반드시** 그대로 따른다 (섹션 생략·재구성 금지)
 - 절차는 `/pr` 커맨드(`.claude/commands/pr.md`) 참고. 제목/본문을 먼저 보여주고 승인받은 뒤 생성·push한다
 - `기타 참고사항`에는 실제로 실행해서 확인한 것만 적는다 — 실행하지 않았으면 "미실행"이라고 명시
+- PR 머지는 리뷰·CI가 통과한 뒤에도 **사용자 승인을 받고** 실행한다
+- 작업 브랜치(`feature/*`, `hotfix/*`)는 `develop`(또는 `main`)에 머지한 뒤 원격과 로컬 모두에서 삭제한다(`git push origin --delete <브랜치>`, `git branch -d <브랜치>`). `develop` → `main` 릴리스 PR에서는 `develop`을 지우지 않는다
 
 ## Issue 작성 규칙
 
