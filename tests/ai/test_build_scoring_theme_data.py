@@ -1,50 +1,65 @@
-"""Ai/build_scoring_theme_data.py 단일 고정 테마 데이터 구성 로직 단위 테스트.
+"""Ai/build_scoring_theme_data.py 교차 clip_sim 수집 로직 단위 테스트.
 
-네트워크·Unsplash API 키 없이 순수 로직만 검증 — recompute_clip_sim은 목(mock) 처리.
+네트워크·Unsplash API 키·CLIP 모델 없이 순수 로직만 검증 — 임베딩은 손으로 만든 벡터를 쓴다.
 """
 
-import random
-from unittest.mock import patch
+import numpy as np
+import pytest
 
-from build_scoring_theme_data import build_scoring_rows, sample_scoring_pairs
-from collect_unsplash_data import FEATURE_FIELDS
-
-
-def _fake_source_row(photo_id: str, theme: str) -> dict:
-    row = {"photo_id": photo_id, "query": theme, "unsplash_url": f"https://unsplash.com/photos/{photo_id}"}
-    for i, field in enumerate(FEATURE_FIELDS):
-        row[field] = str(float(i))
-    return row
-
-
-def test_build_scoring_rows_keeps_pos_clip_sim_and_recomputes_neg_clip_sim():
-    theme = "black and white monochrome photography"
-    other_theme = "vibrant colorful photography"
-    source_rows = (
-        [_fake_source_row(f"bw{i}", theme) for i in range(3)]
-        + [_fake_source_row(f"vc{i}", other_theme) for i in range(3)]
-    )
-
-    with patch("build_scoring_theme_data.recompute_clip_sim", return_value=0.999) as mock_recompute:
-        rows = build_scoring_rows(source_rows, theme, n_pairs=2, access_key="dummy", rng=random.Random(0))
-
-    pos_rows = [r for r in rows if r["photo_id"].startswith("bw")]
-    neg_rows = [r for r in rows if r["photo_id"].startswith("vc")]
-
-    assert len(pos_rows) == 3  # 흑백 테마 사진 전부가 pos 후보
-    assert len(neg_rows) == 2  # n_pairs만큼만 neg로 뽑힘
-    assert all(r["clip_sim"] == "0.0" for r in pos_rows)  # pos는 원래 clip_sim 그대로(재계산 안 함)
-    assert all(r["clip_sim"] == 0.999 for r in neg_rows)  # neg는 recompute_clip_sim 결과로 대체됨
-    assert mock_recompute.call_count == 2  # 딱 선택된 neg 수만큼만 재계산(불필요한 호출 없음)
+from build_scoring_theme_data import (
+    CROSS_CLIP_FIELDS,
+    append_cross_clip_row,
+    cross_clip_row,
+    load_done_photo_ids,
+    pending_rows,
+)
+from collect_unsplash_data import THEMES
+from mlp import THEME_KEYS
 
 
-def test_sample_scoring_pairs_pairs_pos_and_neg_ids_one_to_one():
-    pos_ids = ["p1", "p2", "p3"]
-    neg_ids = ["n1", "n2", "n3"]
+def test_theme_keys_cover_exactly_the_collected_themes():
+    assert set(THEME_KEYS) == set(THEMES)
+    assert sorted(THEME_KEYS.values()) == ["golden", "mono", "vivid"]
 
-    pairs = sample_scoring_pairs(pos_ids, neg_ids, "테마", rng=random.Random(0))
 
-    assert len(pairs) == 3
-    assert {p["pos"] for p in pairs} == set(pos_ids)
-    assert {p["neg"] for p in pairs} == set(neg_ids)
-    assert all(p["theme"] == "테마" for p in pairs)
+def test_cross_clip_row_has_one_similarity_column_per_theme():
+    image_vec = np.array([1.0, 0.0])
+    theme_vecs = {
+        "black and white monochrome photography": np.array([1.0, 0.0]),  # 같은 방향 -> 1.0
+        "vibrant colorful photography": np.array([0.0, 1.0]),  # 직각 -> 0.0
+        "warm golden hour sunset photography": np.array([-1.0, 0.0]),  # 반대 방향 -> -1.0
+    }
+
+    row = cross_clip_row("abc", image_vec, theme_vecs)
+
+    assert list(row) == CROSS_CLIP_FIELDS
+    assert row["photo_id"] == "abc"
+    assert row["clip_mono"] == pytest.approx(1.0)
+    assert row["clip_vivid"] == pytest.approx(0.0)
+    assert row["clip_golden"] == pytest.approx(-1.0)
+
+
+def test_pending_rows_skips_done_photos_and_stops_at_limit():
+    source_rows = [{"photo_id": f"p{i}"} for i in range(5)]
+
+    rows = pending_rows(source_rows, done_ids={"p0", "p2"}, limit=2)
+
+    assert [r["photo_id"] for r in rows] == ["p1", "p3"]
+
+
+def test_load_done_photo_ids_is_empty_when_file_missing(tmp_path):
+    assert load_done_photo_ids(tmp_path / "cross_clip_sim.csv") == set()
+
+
+def test_append_cross_clip_row_writes_header_once_and_resumes(tmp_path):
+    path = tmp_path / "cross_clip_sim.csv"
+    first = {"photo_id": "a", "clip_mono": 0.1, "clip_vivid": 0.2, "clip_golden": 0.3}
+    second = {"photo_id": "b", "clip_mono": 0.4, "clip_vivid": 0.5, "clip_golden": 0.6}
+
+    append_cross_clip_row(first, path)
+    append_cross_clip_row(second, path)
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == ",".join(CROSS_CLIP_FIELDS)
+    assert len(lines) == 3  # 헤더 1줄 + 행 2줄 (헤더가 두 번 쓰이지 않음)
+    assert load_done_photo_ids(path) == {"a", "b"}

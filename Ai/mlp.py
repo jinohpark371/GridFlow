@@ -22,6 +22,14 @@ from features import COLOR_FEATURE_DIM, extract_color_features
 
 INPUT_DIM = 1 + COLOR_FEATURE_DIM  # CLIP 유사도 1 + 색감 피처 10 = 11d
 
+# 테마 문장 -> 짧은 키. 테마별 모델 파일명·교차 clip_sim 컬럼명에 쓴다
+# (문장은 collect_unsplash_data.THEMES와 같아야 함 — collect가 mlp를 import해서 거꾸로 가져올 수 없음)
+THEME_KEYS = {
+    "black and white monochrome photography": "mono",
+    "vibrant colorful photography": "vivid",
+    "warm golden hour sunset photography": "golden",
+}
+
 
 class ScoringMLP(nn.Module):
     """사진 하나 -> 테마 적합도 점수 하나 (절대 점수가 아니라 상대 비교용)."""
