@@ -9,10 +9,18 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 from fastapi.testclient import TestClient
-from mlp import INPUT_DIM
+from mlp import INPUT_DIM, THEME_KEYS
 
 SAMPLES_DIR = Path(__file__).resolve().parents[2] / "samples"
+MONO = "black and white monochrome photography"
+VIVID = "vibrant colorful photography"
+
+
+def _fixed_thresholds(value: float):
+    """lifespan이 읽는 기준값을 모든 테마 같은 값으로 고정 — 필터링 결과를 테스트에서 정하기 위함."""
+    return lambda: {key: value for key in THEME_KEYS.values()}
 
 
 def test_health_check_returns_ok():
@@ -37,7 +45,7 @@ def test_arrange_returns_groups_and_removed_candidates():
     with TestClient(app) as client:
         response = client.post(
             "/arrange",
-            data={"theme": "미니멀한 감성 사진", "group_ids": [0, 0, 1]},
+            data={"theme": MONO, "group_ids": [0, 0, 1]},
             files=[
                 ("photos", _sample_file("photo1.JPG")),
                 ("photos", _sample_file("photo2.JPG")),
@@ -56,13 +64,11 @@ def test_arrange_returns_groups_and_removed_candidates():
 
 @pytest.mark.integration
 def test_arrange_orders_photos_when_theme_matches(monkeypatch):
-    """최종 리뷰에서 발견된 공백: 기존 happy-path 테스트는 threshold=0.35 때문에
-    샘플 사진이 전부 걸러져서 groups가 항상 비었고, 실제 정렬 경로(arrange_photos,
-    학습된 TransitionCostModel)가 한 번도 실행된 적이 없었다. THRESHOLD를 낮춰서
-    사진이 남게 만들고, 실제로 정렬된 결과가 오는지 확인한다."""
+    """실제 정렬 경로(arrange_photos, 학습된 TransitionCostModel)를 태우기 위해 기준값을
+    낮춰 사진이 전부 남게 만들고, 실제로 정렬된 결과가 오는지 확인한다."""
     import main
 
-    monkeypatch.setattr(main, "THRESHOLD", -1e9)
+    monkeypatch.setattr(main, "load_thresholds", _fixed_thresholds(-1e9))
 
     with TestClient(main.app) as client:
         response = client.post(
@@ -91,7 +97,7 @@ def test_arrange_excludes_groups_fully_filtered_out(monkeypatch):
     (수동 curl 확인이 아니라) 테스트로 고정한다."""
     import main
 
-    monkeypatch.setattr(main, "THRESHOLD", 1e9)
+    monkeypatch.setattr(main, "load_thresholds", _fixed_thresholds(1e9))
 
     with TestClient(main.app) as client:
         response = client.post(
@@ -115,7 +121,7 @@ def test_arrange_rejects_mismatched_lengths():
     with TestClient(app) as client:
         response = client.post(
             "/arrange",
-            data={"theme": "테마", "group_ids": [0]},
+            data={"theme": MONO, "group_ids": [0]},
             files=[
                 ("photos", _sample_file("photo1.JPG")),
                 ("photos", _sample_file("photo2.JPG")),
@@ -129,7 +135,7 @@ def test_arrange_rejects_empty_photos():
     from main import app
 
     with TestClient(app) as client:
-        response = client.post("/arrange", data={"theme": "테마", "group_ids": []}, files=[])
+        response = client.post("/arrange", data={"theme": MONO, "group_ids": []}, files=[])
 
     assert response.status_code == 400
 
@@ -141,7 +147,7 @@ def test_arrange_rejects_duplicate_filenames():
     with TestClient(app) as client:
         response = client.post(
             "/arrange",
-            data={"theme": "테마", "group_ids": [0, 0]},
+            data={"theme": MONO, "group_ids": [0, 0]},
             files=[
                 ("photos", _sample_file("photo1.JPG")),
                 ("photos", ("photo1.JPG", (SAMPLES_DIR / "photo2.JPG").read_bytes(), "image/jpeg")),
@@ -183,7 +189,7 @@ def test_arrange_rejects_more_than_max_photos():
     with TestClient(app) as client:
         response = client.post(
             "/arrange",
-            data={"theme": "테마", "group_ids": [0] * count},
+            data={"theme": MONO, "group_ids": [0] * count},
             files=[("photos", (f"{i}.jpg", b"x", "image/jpeg")) for i in range(count)],
         )
 
@@ -197,13 +203,13 @@ def test_arrange_skips_photo_over_size_limit(monkeypatch):
     import main
 
     monkeypatch.setattr(main, "build_feature_vector", lambda image, theme: np.zeros(INPUT_DIM, dtype=np.float32))
-    monkeypatch.setattr(main, "THRESHOLD", -1e9)
+    monkeypatch.setattr(main, "load_thresholds", _fixed_thresholds(-1e9))
     too_big = b"0" * (main.MAX_PHOTO_BYTES + 1)
 
     with TestClient(main.app) as client:
         response = client.post(
             "/arrange",
-            data={"theme": "테마", "group_ids": [0, 0]},
+            data={"theme": MONO, "group_ids": [0, 0]},
             files=[
                 ("photos", _sample_file("photo1.JPG")),
                 ("photos", ("big.jpg", too_big, "image/jpeg")),
@@ -215,3 +221,50 @@ def test_arrange_skips_photo_over_size_limit(monkeypatch):
     assert [item["photo_id"] for item in body["skipped"]] == ["big.jpg"]
     assert "용량" in body["skipped"][0]["reason"]
     assert body["groups"][0]["order"] == ["photo1.JPG"]
+
+
+def test_arrange_rejects_unknown_theme():
+    """테마별 모델이 3개뿐이라, 목록에 없는 문장은 채점할 모델이 없어 거절한다."""
+    from main import app
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/arrange",
+            data={"theme": "미니멀한 감성 사진", "group_ids": [0]},
+            files=[("photos", _sample_file("photo1.JPG"))],
+        )
+
+    assert response.status_code == 400
+    assert "테마" in response.json()["detail"]
+
+
+class _ConstantModel(torch.nn.Module):
+    """어떤 사진이든 같은 점수를 주는 스텁 — 어느 테마 모델이 쓰였는지 점수로 구분하기 위함."""
+
+    def __init__(self, score: float):
+        super().__init__()
+        self.score = score
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.full((x.shape[0], 1), self.score)
+
+
+@pytest.mark.parametrize("theme, expected_removed", [(VIVID, 0), (MONO, 1)])
+def test_arrange_scores_with_the_model_of_the_requested_theme(monkeypatch, theme, expected_removed):
+    """비비드 모델만 기준값보다 높은 점수를 주게 해 두면, 비비드 요청은 통과하고 흑백 요청은 제거 후보가 된다."""
+    import main
+
+    monkeypatch.setattr(main, "build_feature_vector", lambda image, theme: np.zeros(INPUT_DIM, dtype=np.float32))
+    monkeypatch.setattr(main, "load_thresholds", _fixed_thresholds(0.0))
+
+    with TestClient(main.app) as client:
+        for theme_text in THEME_KEYS:
+            main.scoring_models[theme_text] = _ConstantModel(1.0 if theme_text == VIVID else -1.0)
+        response = client.post(
+            "/arrange",
+            data={"theme": theme, "group_ids": [0]},
+            files=[("photos", _sample_file("photo1.JPG"))],
+        )
+
+    assert response.status_code == 200
+    assert len(response.json()["removed_candidates"]) == expected_removed
