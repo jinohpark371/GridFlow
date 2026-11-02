@@ -11,7 +11,12 @@
 ## 개발 환경
 
 - 실행: `uvicorn main:app --reload --app-dir Backend`
-- 체크포인트(`Ai/checkpoints/scoring_mlp.pt`, `Ai/checkpoints/transition_cost_model.pt`)가 없으면 서버 시작이 실패한다 — 먼저 `Ai/evaluate_mlp.py`, `Ai/evaluate_transition_cost_model.py`를 실행해 체크포인트를 만들어야 한다
+- 체크포인트(`Ai/checkpoints/scoring_mlp_{mono,vivid,golden}.pt`, `scoring_thresholds.json`, `transition_cost_model.pt`)가 없으면 서버 시작이 실패한다 — 먼저 `Ai/evaluate_mlp.py`, `Ai/evaluate_transition_cost_model.py`를 실행해 체크포인트를 만들어야 한다
+
+## 테마
+
+- `/arrange`의 `theme`은 `Ai/mlp.py`의 `THEME_KEYS`에 있는 세 문장만 받는다(그 외는 400). 테마마다 전용 `ScoringMLP`와 기준값이 있어서, 요청 테마의 모델·기준값으로 제거 후보를 정한다
+- 프론트 `Frontend/lib/themes.ts`가 같은 세 문장을 보낸다(프론트 테스트가 `Ai/collect_unsplash_data.py`의 `THEMES`와 비교함)
 
 ## 요청 제한 · CORS
 

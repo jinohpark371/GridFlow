@@ -99,3 +99,18 @@ def test_inference_helpers_are_deterministic_even_when_model_is_in_train_mode():
 
     assert torch.equal(scores_first_call, scores_second_call)
     assert model.training is True  # 호출 전 모드로 복원돼야 함
+
+
+def test_theme_checkpoint_path_uses_short_theme_key():
+    from mlp import theme_checkpoint_path
+
+    assert theme_checkpoint_path("vibrant colorful photography").name == "scoring_mlp_vivid.pt"
+
+
+def test_thresholds_round_trip_through_json(tmp_path):
+    from mlp import load_thresholds, save_thresholds
+
+    path = tmp_path / "scoring_thresholds.json"
+    save_thresholds({"mono": 0.1, "vivid": -0.2, "golden": 0.3}, path)
+
+    assert load_thresholds(path) == {"mono": 0.1, "vivid": -0.2, "golden": 0.3}

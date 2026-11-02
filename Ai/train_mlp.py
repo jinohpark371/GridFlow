@@ -1,15 +1,15 @@
 """ScoringMLP 학습 스크립트 (rank_forward + margin_ranking_loss).
 
-흐름: Ai/data/unsplash/pairs.csv -> dataset.load_label_pairs -> dataset.build_pair_features
-      -> ScoringMLP를 pairwise ranking loss로 학습
+흐름: photos.csv + cross_clip_sim.csv -> dataset.build_theme_pairs(테마 하나 기준 쌍)
+      -> ScoringMLP를 pairwise ranking loss로 학습 (테마마다 모델 하나, 검증·저장은 evaluate_mlp.py)
 """
 
 from __future__ import annotations
 
 import torch
 
-from dataset import build_pair_features, load_label_pairs
-from mlp import ScoringMLP, margin_ranking_loss, rank_forward
+from dataset import build_theme_pairs, load_cross_clip_sim, load_photo_pool
+from mlp import THEME_KEYS, ScoringMLP, margin_ranking_loss, rank_forward
 
 DEFAULT_EPOCHS = 100
 DEFAULT_LR = 1e-3
@@ -41,10 +41,11 @@ def train(
 
 
 if __name__ == "__main__":
-    pairs = load_label_pairs()
-    feats_pos, feats_neg = build_pair_features(pairs)
+    features, by_theme = load_photo_pool()
+    cross = load_cross_clip_sim()
 
-    model, loss_history = train(feats_pos, feats_neg)
-
-    print(f"trained on {len(pairs)} pairs for {DEFAULT_EPOCHS} epochs")
-    print(f"loss: {loss_history[0]:.4f} -> {loss_history[-1]:.4f}")
+    for theme_text, key in THEME_KEYS.items():
+        feats_pos, feats_neg = build_theme_pairs(theme_text, by_theme, features, cross)
+        model, loss_history = train(feats_pos, feats_neg)
+        print(f"[{key}] trained on {len(feats_pos)} pairs for {DEFAULT_EPOCHS} epochs")
+        print(f"[{key}] loss: {loss_history[0]:.4f} -> {loss_history[-1]:.4f}")

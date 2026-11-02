@@ -10,6 +10,7 @@ Siamese 구조: 하나의 ScoringMLP를 두 사진에 동일 가중치로 적용
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -119,21 +120,39 @@ def suggest_removal(
     return keep, remove_candidates
 
 
-CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "scoring_mlp.pt"
+CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 
 
-def save_checkpoint(model: ScoringMLP, path: Path = CHECKPOINT_PATH) -> None:
+def save_checkpoint(model: ScoringMLP, path: Path) -> None:
     """학습된 모델 가중치를 저장 — 이후 세션/백엔드에서 재학습 없이 불러다 쓰기 위함."""
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), path)
 
 
-def load_checkpoint(path: Path = CHECKPOINT_PATH) -> ScoringMLP:
+def load_checkpoint(path: Path) -> ScoringMLP:
     """저장된 가중치를 불러와 eval 모드(Dropout 끔) ScoringMLP로 복원."""
     model = ScoringMLP()
     model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
     model.eval()
     return model
+
+
+THRESHOLDS_PATH = CHECKPOINT_DIR / "scoring_thresholds.json"
+
+
+def theme_checkpoint_path(theme_text: str) -> Path:
+    """테마 문장 -> 그 테마 전용 ScoringMLP 가중치 파일 (예: scoring_mlp_vivid.pt)."""
+    return CHECKPOINT_DIR / f"scoring_mlp_{THEME_KEYS[theme_text]}.pt"
+
+
+def save_thresholds(thresholds: dict[str, float], path: Path = THRESHOLDS_PATH) -> None:
+    """테마 키 -> 기준값. 모델마다 점수 범위가 달라 기준값도 테마별로 학습 때 정해 함께 저장한다."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(thresholds, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def load_thresholds(path: Path = THRESHOLDS_PATH) -> dict[str, float]:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

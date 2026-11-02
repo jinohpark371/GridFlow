@@ -1,7 +1,7 @@
 """FastAPI 서버 - Ai/ScoringMLP(테마 필터링) + Ai/arrange_photos(정렬) 엔드포인트.
 
 흐름: 사진 업로드(멀티파트) + 테마 문장 -> 11차원 피처 추출
-      -> ScoringMLP로 부적합 사진 제외 제안 -> 그룹별로 arrange_photos로 정렬 -> JSON 응답
+      -> 그 테마 전용 ScoringMLP + 기준값으로 부적합 사진 제외 제안 -> 그룹별로 arrange_photos로 정렬 -> JSON 응답
 
 Ai/는 패키지가 아닌 bare import 스크립트 스타일이라, sys.path에 Ai/ 경로를 추가한 뒤
 bare import로 재사용한다(tests/conftest.py와 동일한 패턴).
@@ -23,20 +23,26 @@ from fastapi import File, Form, HTTPException, UploadFile  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from PIL import Image  # noqa: E402
-from mlp import build_feature_vector, inference_scores, suggest_removal  # noqa: E402
+from mlp import THEME_KEYS, build_feature_vector, inference_scores, load_thresholds, suggest_removal  # noqa: E402
 from mlp import load_checkpoint as load_scoring_checkpoint  # noqa: E402
+from mlp import theme_checkpoint_path  # noqa: E402
 from transition_cost_model import load_checkpoint as load_transition_checkpoint  # noqa: E402
 from arrange_photos import arrange_photos  # noqa: E402
 
-scoring_model = None
+# 테마 문장 -> 그 테마 전용 ScoringMLP / 기준값. 모델마다 점수 범위가 달라 기준값도 테마별로 학습 때 정해 둔 값을 쓴다
+scoring_models: dict = {}
+scoring_thresholds: dict[str, float] = {}
 transition_model = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global scoring_model, transition_model
+    global transition_model
     # 체크포인트가 없으면 여기서 예외가 나서 서버 시작 자체가 실패한다(의도된 동작)
-    scoring_model = load_scoring_checkpoint()
+    thresholds_by_key = load_thresholds()
+    for theme_text, key in THEME_KEYS.items():
+        scoring_models[theme_text] = load_scoring_checkpoint(theme_checkpoint_path(theme_text))
+        scoring_thresholds[theme_text] = thresholds_by_key[key]
     transition_model = load_transition_checkpoint()
     yield
 
@@ -62,7 +68,6 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-THRESHOLD = 0.35
 BRUTE_FORCE_MAX = 8
 MAX_PHOTOS = 20  # 인스타그램 캐러셀 최대치. Frontend/lib/limits.ts와 같은 값
 MAX_PHOTO_BYTES = 5 * 1024 * 1024  # 프론트는 512px로 줄여 보내므로 정상 사용에선 안 걸림 — 원본 직접 전송 방어용
@@ -74,6 +79,8 @@ async def arrange(
     photos: list[UploadFile] = File(default=[]),
     group_ids: list[int] = Form(default=[]),
 ):
+    if theme not in THEME_KEYS:
+        raise HTTPException(400, f"지원하지 않는 테마임 — 가능한 값: {', '.join(THEME_KEYS)}")
     if not photos:
         raise HTTPException(400, "photos가 비어있음")
     if len(photos) > MAX_PHOTOS:
@@ -108,7 +115,10 @@ async def arrange(
 
     photo_ids = list(color_feats.keys())
     feats_tensor = torch.from_numpy(np.stack([color_feats[pid] for pid in photo_ids]))
-    keep_ids, remove_candidates = suggest_removal(scoring_model, feats_tensor, photo_ids, threshold=THRESHOLD)
+    scoring_model = scoring_models[theme]
+    keep_ids, remove_candidates = suggest_removal(
+        scoring_model, feats_tensor, photo_ids, threshold=scoring_thresholds[theme]
+    )
     removed_candidates = [{"photo_id": pid, "score": score} for pid, score in remove_candidates]
 
     fitness_scores: dict[str, float] = {}
