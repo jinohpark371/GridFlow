@@ -10,6 +10,7 @@ Siamese 구조: 하나의 ScoringMLP를 두 사진에 동일 가중치로 적용
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,14 @@ from clip import cosine_similarity, get_image_embedding, get_text_embedding
 from features import COLOR_FEATURE_DIM, extract_color_features
 
 INPUT_DIM = 1 + COLOR_FEATURE_DIM  # CLIP 유사도 1 + 색감 피처 10 = 11d
+
+# 테마 문장 -> 짧은 키. 테마별 모델 파일명·교차 clip_sim 컬럼명에 쓴다
+# (문장은 collect_unsplash_data.THEMES와 같아야 함 — collect가 mlp를 import해서 거꾸로 가져올 수 없음)
+THEME_KEYS = {
+    "black and white monochrome photography": "mono",
+    "vibrant colorful photography": "vivid",
+    "warm golden hour sunset photography": "golden",
+}
 
 
 class ScoringMLP(nn.Module):
@@ -111,21 +120,39 @@ def suggest_removal(
     return keep, remove_candidates
 
 
-CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "scoring_mlp.pt"
+CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 
 
-def save_checkpoint(model: ScoringMLP, path: Path = CHECKPOINT_PATH) -> None:
+def save_checkpoint(model: ScoringMLP, path: Path) -> None:
     """학습된 모델 가중치를 저장 — 이후 세션/백엔드에서 재학습 없이 불러다 쓰기 위함."""
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), path)
 
 
-def load_checkpoint(path: Path = CHECKPOINT_PATH) -> ScoringMLP:
+def load_checkpoint(path: Path) -> ScoringMLP:
     """저장된 가중치를 불러와 eval 모드(Dropout 끔) ScoringMLP로 복원."""
     model = ScoringMLP()
     model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
     model.eval()
     return model
+
+
+THRESHOLDS_PATH = CHECKPOINT_DIR / "scoring_thresholds.json"
+
+
+def theme_checkpoint_path(theme_text: str) -> Path:
+    """테마 문장 -> 그 테마 전용 ScoringMLP 가중치 파일 (예: scoring_mlp_vivid.pt)."""
+    return CHECKPOINT_DIR / f"scoring_mlp_{THEME_KEYS[theme_text]}.pt"
+
+
+def save_thresholds(thresholds: dict[str, float], path: Path = THRESHOLDS_PATH) -> None:
+    """테마 키 -> 기준값. 모델마다 점수 범위가 달라 기준값도 테마별로 학습 때 정해 함께 저장한다."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(thresholds, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def load_thresholds(path: Path = THRESHOLDS_PATH) -> dict[str, float]:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 # MLP 테마 적합도 스코어링 (`Ai/mlp.py`)
 
-> 작성일: 2026-08-24 · 작성자: 진오 · 관련 이슈: feature/mlp-적합도-스코어링/1
+> 작성일: 2026-08-24 · 최종 수정: 2026-11-02 · 작성자: 진오 · 관련 이슈: feature/mlp-적합도-스코어링/1, #23
 
 ## 📌 목적
-사진이 선택된 테마에 얼마나 적합한지 **상대적으로** 비교하도록 학습되는 Siamese MLP. 순서를 직접 정하지 않고 ①부적합 사진의 제외를 제안하고 ②유지 사진에 점수(가중치)를 부여하는 역할만 담당한다.
+사진이 선택된 테마에 얼마나 적합한지 **상대적으로** 비교하도록 학습되는 Siamese MLP. **테마마다 모델을 하나씩**(흑백·비비드·골든아워) 따로 학습해 둔다. 순서를 직접 정하지 않고 ①부적합 사진의 제외를 제안하고 ②유지 사진에 점수(가중치)를 부여하는 역할만 담당한다.
 
 ## 🧭 파이프라인 상 위치
 전체 아키텍처 순서도 기준 "MLP 모델 설계" 단계이며, `clip.py`의 콜드스타트 baseline을 대체하는 Layer 1 본 모델이다.
@@ -24,8 +24,11 @@
 | `filter_by_fitness` | `model, feats, threshold=0.35` | `(keep_idx, scores)` | threshold 이상 인덱스만 반환, 순서는 정하지 않음 |
 | `suggest_removal` | `model, feats, photo_ids, threshold=0.35` | `(keep_ids, remove_candidates)` | 제외 "제안" 목록만 생성 (자동 삭제 아님) |
 | `inference_scores` | `model, feats` | `torch.Tensor` (shape `(N,)`) | eval 모드로 결정적으로 점수 계산 후 이전 모드로 복원 (Dropout 끔) |
-| `save_checkpoint` | `model, path`(기본 `Ai/checkpoints/scoring_mlp.pt`) | `None` | 학습된 가중치(`state_dict`) 저장 |
-| `load_checkpoint` | `path`(기본 위와 동일) | `ScoringMLP` (eval 모드) | 저장된 가중치를 불러와 즉시 추론 가능한 모델로 복원 |
+| `save_checkpoint` | `model, path` | `None` | 학습된 가중치(`state_dict`) 저장 — 경로는 `theme_checkpoint_path`로 정함 |
+| `load_checkpoint` | `path` | `ScoringMLP` (eval 모드) | 저장된 가중치를 불러와 즉시 추론 가능한 모델로 복원 |
+| `THEME_KEYS` | — | `dict[str, str]` | 테마 문장 -> 짧은 키(`mono`/`vivid`/`golden`). 모델 파일명·`cross_clip_sim.csv` 컬럼명에 씀 |
+| `theme_checkpoint_path` | `theme_text` | `Path` | `Ai/checkpoints/scoring_mlp_<키>.pt` |
+| `save_thresholds` / `load_thresholds` | `{키: 기준값}`, `path`(기본 `Ai/checkpoints/scoring_thresholds.json`) | `None` / `dict[str, float]` | 테마별 기준값 저장·불러오기 |
 
 ## 🧠 설계 결정과 이유
 
@@ -55,6 +58,18 @@
 - 결정: `inference_scores`는 원래 모듈 내부 전용(`_inference_scores`)이었으나, validation ranking accuracy 계산(`Ai/evaluate_mlp.py`)에서도 동일한 "eval 모드 전환 후 복원" 로직이 필요해져 공개 함수로 전환(`_` 제거)
   - 이유: 같은 로직을 `evaluate_mlp.py`에 다시 구현하면 위 버그(모드 미복원)가 재발할 수 있음 — 단일 소스를 재사용해 그 위험을 원천 차단
 
+- 결정(변경, 2026-11-02): 모델 하나를 흑백 데이터로만 학습해 모든 테마에 쓰던 방식을 **테마마다 모델을 따로 학습**하는 방식으로 바꿈(#23)
+  - 이유: 실제 사진을 어떤 테마로 보내도 전부 제거 후보로 나오는 문제를 분석해 보니, 흑백 사진(pos)과 컬러 사진(neg)만 비교하는 데이터라 "채도가 낮을수록 높은 점수"만 배워도 정답률 100%가 나왔음. 성분 하나씩을 데이터 범위 끝에서 끝까지 바꿔 보니 평균 채도는 점수를 −0.51 움직이는데 테마 정보가 들어오는 유일한 통로인 `clip_sim`은 +0.003뿐이었고, 그 결과 비비드·골든아워 사진은 자기 테마로 채점해도 0/30 통과. 테마별로 가르는 기준이 다르다는 것도 확인(흑백은 채도, 비비드는 색상 분포가 거의 완벽하게 가름, 골든아워는 단일 성분으론 안 되고 조합해야 AUC 0.87)
+  - 검토한 다른 선택지: (B) 모델 하나에 테마 one-hot을 입력으로 추가(11d -> 14d) — 한 모델이 세 기준을 다 배워야 하는데 테마당 30장으로는 빠듯하고 입력 스키마가 바뀜. (C) `clip_sim`을 "이 테마 - 세 테마 평균"인 상대값으로 바꿈 — 효과가 불확실해 실험이 필요. 프론트 테마가 3개 프리셋으로 고정이라 "새 테마를 바로 못 다룸"이라는 A안의 단점이 지금은 문제가 안 돼 A를 택함
+- 결정: 학습 데이터는 테마마다 "이 테마 사진 = pos, 다른 두 테마 사진 = neg" (`dataset.build_theme_pairs`), `clip_sim`은 neg 사진도 **이 테마 문장 기준**으로 잰 값(`cross_clip_sim.csv`)
+  - 이유: 흑백 모델에게 "색이 없으면 좋다"는 이제 지름길이 아니라 정답이고, 비비드 모델은 반대로 배워야 함. `clip_sim`을 수집 테마 기준 값 그대로 쓰면 모든 사진이 "자기 테마와 비슷함"(0.27~0.28)이라 테마를 가르는 신호가 사라짐
+- 결정: 기준값을 0.35 하나로 고정하지 않고 **테마별로 학습 때 검증 사진으로 정해 `scoring_thresholds.json`에 함께 저장** (`evaluate_mlp.best_threshold`)
+  - 이유: pairwise ranking으로 학습해 점수의 절대 크기에 정해진 의미가 없고, 실제로 모델마다 점수 범위가 달라 기준값이 −0.374 / 0.317 / −0.028로 나옴 — 0.35 하나를 쓰면 세 모델 모두 대부분 탈락. "점수 하위 N%는 빼기 추천" 같은 순위 기준은 모든 사진이 테마에 맞아도 누군가는 빠지게 돼 택하지 않음. 정확도가 같은 후보가 여럿이면 양옆 점수 간격이 가장 넓은 곳을 골라 새 사진 점수가 조금 흔들려도 판정이 덜 뒤집히게 함
+- 결정: `THEME_KEYS`를 `collect_unsplash_data.THEMES` 옆이 아니라 `mlp.py`에 둠
+  - 이유: `collect_unsplash_data.py`가 `mlp.py`를 import하므로 반대로 가져오면 순환 import. 대신 두 목록이 어긋나면 실패하는 테스트(`test_theme_keys_cover_exactly_the_collected_themes`)로 묶음
+- 결정: `evaluate_mlp.py`는 학습 seed를 고정(`TRAIN_SEED = 0`)하고 세 테마 결과를 `docs/ai/output/theme_summary.png` 한 장(loss curve / 검증 정확도 / 모델 x 사진 테마 통과표)으로 저장
+  - 이유: 재실행해도 같은 체크포인트·그래프가 나와야 코드 변경의 효과만 비교할 수 있음. 세 결과를 한 장에 모아 학습이 됐는지·처음 보는 사진도 맞히는지·테마별로 갈리는지를 한눈에 확인
+
 ## ⚙️ 동작 흐름
 
 ```python
@@ -65,8 +80,10 @@ feat = build_feature_vector(image, theme_text)
 score_pos, score_neg = rank_forward(model, feat_pos, feat_neg)
 loss = margin_ranking_loss(score_pos, score_neg)
 
-# 3) 추론: 적합도 점수 계산 후 threshold 미만은 제외 "제안"
-keep_ids, remove_candidates = suggest_removal(model, feats, photo_ids, threshold=0.35)
+# 3) 추론: 요청 테마의 모델·기준값으로 점수 계산 후 기준값 미만은 제외 "제안"
+model = load_checkpoint(theme_checkpoint_path(theme_text))
+threshold = load_thresholds()[THEME_KEYS[theme_text]]
+keep_ids, remove_candidates = suggest_removal(model, feats, photo_ids, threshold=threshold)
 # remove_candidates = [(photo_id, score), ...] -> 사용자가 제외/유지 직접 선택
 ```
 
@@ -76,9 +93,26 @@ keep_ids, remove_candidates = suggest_removal(model, feats, photo_ids, threshold
 - [x] Validation ranking accuracy 측정 및 loss curve/점수 분포 시각화는 `Ai/evaluate_mlp.py`에 구현
 - **원인 규명 + 재정비(2026-09-22)**: 한때 `Ai/data/unsplash/pairs.csv`(Unsplash 준자동 수집, 테마 3개를 돌아가며 pos/neg 구성)로 `dataset.py`/`evaluate_mlp.py`를 전환해 재학습해봤으나(val ranking accuracy 55.56~77.78%로 낮게 나옴), 원인을 분석해보니 **데이터 품질이 아니라 모델 구조 자체가 이 문제와 안 맞았음** — `ScoringMLP`는 사진 한 장의 절대 점수를 매기는 모델인데, "테마를 돌아가며 pos/neg 구성"하는 데이터는 같은 사진이 어떤 트리플렛에서는 pos, 다른 트리플렛에서는 neg로 동시에 등장하는 구조적 모순이 있음(테마를 색감이 더 뚜렷하게 갈리게 바꿨더니 오히려 정확도가 더 떨어진 게 근거). `ScoringMLP`는 원래 설계대로 **"고정된 테마 하나" 기준 절대 점수**(`filter_by_fitness`, `suggest_removal`)에만 쓰는 게 맞고, "사진 두 장이 서로 어울리는가"는 별도의 페어와이즈 모델(`Ai/transition_cost_model.py`, val 93.33%로 훨씬 잘 됨)로 분리함. 처음엔 `Ai/data/label_pairs.json`(초기 프로토타입 시절 "미니멀한 감성 사진" 테마, 지금 방향과 안 맞음)로 되돌리는 걸 고려했으나, `Ai/build_scoring_theme_data.py`를 새로 만들어 **Unsplash 테마 중 하나(`black and white monochrome photography`)를 고정 테마로 삼아** 재구성 — pos는 그 테마로 수집된 사진(clip_sim 그대로), neg는 다른 테마 사진을 원본에서 다시 받아 그 고정 테마 기준으로 clip_sim만 재계산. 결과: `Ai/data/unsplash/scoring_pairs.csv`(15쌍, 단일 고정 테마) 기준 **val ranking accuracy 100%(3/3)** — 구조적 모순만 없애면 Unsplash 데이터로도 잘 됨을 재확인. 체크포인트는 `Ai/checkpoints/scoring_mlp.pt`에 저장(`save_checkpoint`/`load_checkpoint` 신규). 자세한 경위는 `docs/ai/Transition_cost_model.md`, `docs/ai/Build_scoring_theme_data.md` 참고
 - [ ] 사용자 유지/제외 행동으로부터 학습 쌍(pos, neg)을 수집·저장하는 파이프라인 미구현 (Notion 설계 문서 8절)
-- [ ] `threshold=0.35`는 설계 문서의 예시값을 그대로 사용 중 — 실 데이터 기반 검증 필요, "상대 기준(그룹 내 하위 N%)" 방식으로 전환 검토 (Notion 설계 문서 7절)
+- [x] ~~`threshold=0.35`는 설계 문서의 예시값을 그대로 사용 중~~ — 테마별로 검증 사진에서 정한 기준값으로 대체(2026-11-02, #23). `filter_by_fitness`/`suggest_removal`의 기본값 0.35는 호환용으로만 남아 있고 백엔드는 항상 테마별 값을 넘김
+- [x] ~~단일 모델이 테마를 구분하지 못함(어떤 테마든 흑백 사진만 통과)~~ — 테마별 모델로 해소(2026-11-02, #23)
+- [ ] 검증 사진이 테마당 6장뿐이라 정확도·기준값이 사진 한두 장에 크게 흔들림 — 데이터를 늘리면 재검토
+- [ ] 프론트 테마 프리셋에 없는 새 테마는 데이터 수집부터 학습까지 다시 해야 지원 가능
 - [ ] Precision/Recall 등 추가 평가 지표 측정 로직 미구현 (ranking accuracy는 구현됨)
 - [ ] 순서 자체의 품질(Kendall's Tau 등)은 설계상 이 모듈 책임이 아니라 배치 단계 몫 — 범위 밖
+
+## 🧪 실전 테스트 결과 (2026-11-02)
+
+`python Ai/evaluate_mlp.py` (테마당 학습 1,152쌍, 검증은 학습에 쓰지 않은 사진 18장)
+
+| 모델 | 학습 loss | 순위 정확도 | 기준값 | 기준값 정확도 |
+|---|---|---|---|---|
+| 흑백 | 0.183 -> 0.000 | 97.2% | −0.374 | 94.4% |
+| 비비드 | 0.164 -> 0.001 | 94.4% | 0.317 | 94.4% |
+| 골든아워 | 0.197 -> 0.001 | 100% | −0.028 | 100% |
+
+검증 사진 통과 수(테마당 6장): 흑백 모델 5/0/0, 비비드 모델 1/6/0, 골든아워 모델 0/0/6 — 대각선만 통과. 학습 seed를 5개로 바꿔도 흑백 순위 정확도만 93.1~97.2% 사이로 흔들리고 나머지는 같음. 모델이 보는 성분: 흑백은 채도(−0.80), 비비드는 붉은~노란 비율(−0.67)과 채도(+0.55), 골든아워는 붉은~노란 비율(+0.30)과 `clip_sim`(+0.11) — 색만으로 가르기 어려운 골든아워에서 교차 `clip_sim`이 실제로 쓰임
+
+`samples/` 실제 사진 재측정(백엔드 `/arrange` 경로): 초록 나무 사진·장미 사진은 비비드에서만, 물 위 노을 사진은 골든아워에서만 통과하고 셋 다 흑백에서는 탈락. 수정 전에는 테마를 바꿔도 점수가 ±0.01만 움직이고 모든 테마에서 전부 탈락했음
 
 ## 🧪 사용 예시
 
